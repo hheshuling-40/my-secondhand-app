@@ -92,13 +92,13 @@ def execute_db(query, params=()):
 
 
 # ==========================================
-# 4. 登入 / 註冊區
+# 4. 登入 / 註冊區 (含找回密碼)
 # ==========================================
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
     st.markdown('<div class="main-title">🎓 Campus Market 全國大學生智慧市集</div>', unsafe_allow_html=True)
-    mode = st.radio("請選擇操作項目：", ["🔑 同學登入", "📝 新同學註冊帳號"], horizontal=True)
+    mode = st.radio("請選擇操作項目：", ["🔑 同學登入", "📝 新同學註冊帳號", "🔍 忘記密碼"], horizontal=True)
 
     log_type = st.selectbox("請選擇體系類型", list(CAMPUS_MAP.keys()))
     log_uni = st.selectbox("請選取您的就讀學校", CAMPUS_MAP[log_type])
@@ -132,6 +132,19 @@ if not st.session_state.logged_in:
                     st.success("🎉 註冊成功！請切換到登入頁面。")
                 except:
                     st.error("該學校此學號已被註冊！")
+
+    elif mode == "🔍 忘記密碼":
+        st.caption("🔒 安全驗證：請輸入正確的註冊學號與持有的 LINE ID 以核對資料庫。")
+        with st.form("forgot_form"):
+            f_sid = st.text_input("請輸入學號")
+            f_line = st.text_input("請輸入註冊時綁定的 LINE ID")
+            if st.form_submit_button("驗證身分並找回密碼"):
+                res = get_db_data("SELECT password, name FROM users WHERE student_id=? AND line_id=? AND university=?",
+                                  (f_sid, f_line, log_uni))
+                if not res.empty:
+                    st.success(f"🔑 驗證成功！{res['name'][0]} 同學，您的密碼為：【 {res['password'][0]} 】")
+                else:
+                    st.error("❌ 驗證失敗：學號、LINE ID 或學校資訊不吻合！")
 
 # ==========================================
 # 5. 主系統主控台 (登入後)
@@ -226,7 +239,7 @@ else:
             if buyer_ship_choice == "四大超商取貨":
                 chain = st.selectbox("選擇超商", list(EMAP_URLS.keys()))
                 st.markdown(
-                    f'<a href="{EMAP_URLS[chain]}" target="_blank" class="emap-btn">🌐 開啟【{chain}】真實地圖查店號</a>',
+                    f'<a href="{EMAP_URLS[chain]}" target="_blank" class="emap-btn">🌐 開氣【{chain}】真實地圖查店號</a>',
                     unsafe_allow_html=True)
                 raw_store = st.text_input("貼上門市名稱與店號", placeholder="例如：台大門市 115234")
 
@@ -325,7 +338,7 @@ else:
                     execute_db("UPDATE lost_found SET status='已認領' WHERE id=?", (r['id'],))
                     st.success("🎉 公告已撤除。");
                     time.sleep(0.5);
-                    st.rerun()
+                    r.rerun()
         with t2:
             with st.form("lost_form", clear_on_submit=True):
                 l_name = st.text_input("物品名稱")
