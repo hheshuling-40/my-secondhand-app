@@ -185,9 +185,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 0. 基礎資料庫與地理常數設定
+# 0. 真實超商編號與大數據對應字典
 # ==========================================
-DB_NAME = 'streamlit_campus_market_v118_final.db'
+DB_NAME = 'streamlit_campus_market_v117_shopee_style.db'
 
 CAMPUS_TYPE_MAP = {
     "公立學校": ["國立臺灣大學", "國立政治大學", "國立臺灣師範大學", "國立清華大學", "國立陽明交通大學", "國立成功大學",
@@ -205,23 +205,18 @@ EMAP_URLS = {
     "OK Mart": "https://www.okmart.com.tw/convenient_shopSearch"
 }
 
-# 🚀 需求 1：真實超商編號大數據對應字典（輸入編號自動查名稱與地址）
+# 🚀 1. 新增：台灣核心/校園超商真實店號即時查詢字典
 REAL_STORE_CODE_DATABASE = {
-    # 7-11真實門市
     "131421": "雲科大門市 (雲林縣斗六市大學路三段123號)",
     "934211": "斗六門市 (雲林縣斗六市民生路200號)",
     "115234": "台大門市 (台北市大安區羅斯福路四段1號)",
-    "194821": "新復興門市 (台北市大安區復興南路二段151巷30號)",
-    "124115": "政大門市 (台北市文山區指南路二段65號)",
-    "231452": "逢甲門市 (台中市西屯區文華路100號)",
-    "162534": "成大門市 (台南市東區勝利路119號)",
-    "181245": "交大門市 (新竹市東區大學路1001號)",
-    # 全家真實門市
     "016542": "全家 雲科店 (雲林縣斗六市大學路三段123-1號)",
     "018442": "全家 台大長興店 (台北市大安區長興街82號)",
-    "012445": "全家 政大新光店 (台北市文山區萬壽路11號)",
-    "015521": "全家 逢甲大學店 (台中市西屯區逢甲路28號)",
-    "019942": "全家 中興大學店 (台中市南區興大路145號)"
+    "194821": "新復興門市 (台北市大安區復興南路)",
+    "124115": "政大門市 (台北市文山區指南路)",
+    "012445": "全家 政大新光店 (台北市文山區萬壽路)",
+    "231452": "逢甲門市 (台中市西屯區文華路)",
+    "015521": "全家 逢甲大學店 (台中市西屯區逢甲路)"
 }
 
 YUNTECH_ALL_DEPTS = ["不限科系/共同通識核心", "機械工程系", "電機工程系", "電子工程系", "資訊工程系", "營建工程系",
@@ -277,7 +272,7 @@ def init_db():
 init_db()
 
 # ==========================================
-# 2. 狀態管理與輔助安全函式
+# 2. 狀態管理與輔助函式
 # ==========================================
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'student_id' not in st.session_state: st.session_state.student_id = ""
@@ -396,7 +391,7 @@ else:
         st.markdown(f"### 🧑‍🎓 {current_name} ({current_uni})")
         st.metric(label="我的環保集點幣", value=f"{user_coins} 🪙")
 
-        # 🚀 需求 3：精簡版抽獎區（字數精簡優化）
+        # 🚀 3. 新增：精簡版抽獎區字數優化
         st.markdown(f"""
         <div class="mission-box">
             <div class="mission-title">🎡 滿 5 次解鎖幸運抽獎</div>
@@ -451,7 +446,7 @@ else:
         my_buys = pd.read_sql_query("SELECT name, price, university, final_trade_info FROM products WHERE buyer_id = ?",
                                     conn, params=(current_student,))
 
-        # 🚀 需求 2：仿蝦皮「未核銷」與「已核銷/已使用」分頁顯示
+        # 🚀 2. 新增：仿蝦皮「未核銷」與「已核銷/已使用」分頁顯示
         my_vouchers_active = pd.read_sql_query(
             "SELECT gift_name, code, timestamp FROM vouchers WHERE student_id = ? AND status = '未使用'", conn,
             params=(current_student,))
@@ -607,37 +602,28 @@ else:
                     f'<a href="{EMAP_URLS[chain_choice]}" target="_blank" class="emap-btn">🌐 開啟官方【{chain_choice}】電子地圖查詢</a>',
                     unsafe_allow_html=True)
 
-                # 🚀 需求 1：輸入店號秒查店名中文功能核心
-                raw_store_input = st.text_input("📋 請輸入 5~6 位數「超商門市編號」",
-                                                placeholder="請隨意輸入測試：115234（台大）、016542（雲科）、231452（逢甲）")
+                # 🚀 1. 核心精華：即時編號對應店名功能
+                raw_store_input = st.text_input("📋 請輸入 5~6 位數「超商門市編號」或名稱",
+                                                placeholder="測試可用：115234 或 131421")
 
                 user_store_final = ""
                 if raw_store_input.strip():
                     clean_input = raw_store_input.strip()
                     code_match = re.search(r'\d{5,6}', clean_input)
 
-                    if code_match:
-                        input_code = code_match.group()
-
-                        # 比對真實超商大數據
-                        if input_code in REAL_STORE_CODE_DATABASE:
-                            matched_details = REAL_STORE_CODE_DATABASE[input_code]
-                            user_store_final = f"[{chain_choice}] {matched_details} [店號: {input_code}]"
-
-                            st.markdown(f"""
-                            <div style="background-color: #ebfbee; border-left: 5px solid #40c057; padding: 10px; border-radius: 8px; margin: 8px 0;">
-                                <span style="color: #2b8a3e; font-weight: bold;">🎯 智慧店號識別成功：</span><br>
-                                <span style="color: #2b8a3e; font-size: 13px;">{user_store_final}</span>
-                            </div>
-                            """, unsafe_allow_html=True)
-                            form_valid = True
-                        else:
-                            # 字典內沒有時，仍保留彈性給使用者自填
-                            name_match = re.sub(r'\d+', '', clean_input).replace("門市", "").strip()
-                            store_title = name_match if name_match else "自填門市"
-                            user_store_final = f"[{chain_choice}] {store_title} (店號: {input_code})"
-                            st.info(f"📋 已辨識店號為 `{input_code}`，請確保配送資訊無誤。")
-                            form_valid = True
+                    if code_match and code_match.group() in REAL_STORE_CODE_DATABASE:
+                        # 🎯 抓到資料庫儲存的對應，自動轉換顯示店名！
+                        matched_name = REAL_STORE_CODE_DATABASE[code_match.group()]
+                        user_store_final = f"[{chain_choice}] {matched_name}"
+                        st.success(f"⚡ **智慧店號識別成功：** `{user_store_final}`")
+                        form_valid = True
+                    elif code_match:
+                        # 有輸入編號但不在精簡預設字典中，仍採用正則分析
+                        name_match = re.sub(r'\d+', '', clean_input).replace("門市", "").strip()
+                        store_title = name_match if name_match else "自填門市"
+                        user_store_final = f"[{chain_choice}] {store_title} (店號: {code_match.group()})"
+                        st.info(f"📋 格式化物流資料： `{user_store_final}`")
+                        form_valid = True
                     elif len(clean_input) >= 2:
                         user_store_final = f"[{chain_choice}] {clean_input}門市 (店號: 未輸入)"
                         st.warning("⚠️ 建議填入數字店號，物流配送會更精確喔！")
@@ -684,7 +670,7 @@ else:
                         time.sleep(1.0);
                         st.rerun()
             else:
-                st.button("🔒 請完整填寫物流資訊以解鎖按鈕", use_container_width=True, disabled=True)
+                st.button("🔒 請完整填寫物流資訊", use_container_width=True, disabled=True)
 
 
         if df.empty:
