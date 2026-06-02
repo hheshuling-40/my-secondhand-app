@@ -139,7 +139,7 @@ st.markdown("""
 # ==========================================
 # 0. 萬全地理大數據：完整台灣 368 個鄉鎮市區
 # ==========================================
-DB_NAME = 'streamlit_campus_market_v115_perfect_taiwan_368.db'
+DB_NAME = 'streamlit_campus_market_v116_perfect_taiwan_fixed.db'
 
 CAMPUS_TYPE_MAP = {
     "公立學校": [
@@ -175,7 +175,6 @@ CAMPUS_TYPE_MAP = {
     ]
 }
 
-# 🛠️ 100% 完整收錄台灣 368 鄉鎮市區結構表
 TW_368_DISTRICTS = {
     "臺北市": ["中正區", "大同區", "中山區", "松山區", "大安區", "萬華區", "信義區", "士林區", "北投區", "內湖區",
                "南港區", "文山區"],
@@ -191,10 +190,10 @@ TW_368_DISTRICTS = {
                "楠西區", "南化區", "仁德區", "關廟區", "龍崎區", "官田區", "麻豆區", "佳里區", "西港區", "七股區",
                "將軍區", "學甲區", "北門區", "新營區", "後壁區", "白河區", "東山區", "六甲區", "下營區", "柳營區",
                "鹽水區", "善化區", "大內區", "山上區", "新市區", "安定區"],
-    "高雄市": ["興達港區", "新興區", "前金區", "苓雅區", "鹽埕區", "鼓山區", "旗津區", "前鎮區", "三民區", "楠梓區",
-               "小港區", "左營區", "仁武區", "大社區", "岡山區", "路竹區", "阿蓮區", "田寮區", "燕巢區", "橋頭區",
-               "梓官區", "彌陀區", "永安區", "湖內區", "鳳山區", "大寮區", "林園區", "鳥松區", "大樹區", "旗山區",
-               "美濃區", "六龜區", "內門區", "杉林區", "甲仙區", "桃源區", "那瑪夏區", "茂林區", "茄萣區"],
+    "高雄市": ["新興區", "前金區", "苓雅區", "鹽埕區", "鼓山區", "旗津區", "前鎮區", "三民區", "楠梓區", "小港區",
+               "左營區", "仁武區", "大社區", "岡山區", "路竹區", "阿蓮區", "田寮區", "燕巢區", "橋頭區", "梓官區",
+               "彌陀區", "永安區", "湖內區", "鳳山區", "大寮區", "林園區", "鳥松區", "大樹區", "旗山區", "美濃區",
+               "六龜區", "內門區", "杉林區", "甲仙區", "桃源區", "那瑪夏區", "茂林區", "茄萣區"],
     "基隆市": ["仁愛區", "信義區", "中正區", "中山區", "安樂區", "暖暖區", "七堵區"],
     "新竹市": ["東區", "北區", "香山區"],
     "嘉義市": ["東區", "西區"],
@@ -326,4 +325,501 @@ def get_coins(student_id, university):
 
 
 def modify_coins(student_id, university, amount):
-    conn = sqlite3.connect(DB_NAME
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("UPDATE users SET green_coins = green_coins + ? WHERE student_id = ? AND university = ?",
+                 (amount, student_id, university))
+    conn.commit()
+    conn.close()
+
+
+# ==========================================
+# 3. 登入 / 註冊區
+# ==========================================
+if not st.session_state.logged_in:
+    st.markdown('<div class="main-title">🎓 Campus Market 全国大學生智慧市集</div>', unsafe_allow_html=True)
+    st.write("已整合全台 368 完整鄉鎮市區大數據與 139 所大專院校系統。")
+
+    mode = st.radio("請選擇操作項目：", ["🔑 同學登入", "📝 新同學註冊帳號", "❓ 忘記密碼"], horizontal=True)
+
+    if mode == "🔑 同學登入":
+        with st.form("login_form"):
+            log_type = st.selectbox("請選擇體系類型", list(CAMPUS_TYPE_MAP.keys()))
+            log_uni = st.selectbox("請選取您的就讀學校", CAMPUS_TYPE_MAP[log_type])
+            sid = st.text_input("學號", placeholder="請輸入學號")
+            pas = st.text_input("密碼", type="password", placeholder="請輸入密碼")
+            if st.form_submit_button("登入市集"):
+                conn = sqlite3.connect(DB_NAME)
+                res = conn.execute(
+                    "SELECT university, name FROM users WHERE student_id = ? AND password = ? AND university = ?",
+                    (sid, pas, log_uni)).fetchone()
+                conn.close()
+                if res:
+                    st.session_state.logged_in = True
+                    st.session_state.student_id = sid
+                    st.session_state.user_uni = res[0]
+                    st.session_state.user_name = res[1]
+                    st.rerun()
+                else:
+                    st.error("❌ 學校、學號或密碼輸入錯誤，請重新確認！")
+
+    elif mode == "📝 新同學註冊帳號":
+        st.subheader("填寫校園註冊資料")
+        reg_name = st.text_input("您的真實姓名/稱呼 *")
+        reg_sid = st.text_input("註冊學號 *")
+        reg_email = st.text_input("學校聯絡電子郵件 *")
+        reg_type = st.selectbox("學校體系類型 *", list(CAMPUS_TYPE_MAP.keys()))
+        reg_uni = st.selectbox("所屬大學 *", CAMPUS_TYPE_MAP[reg_type])
+        reg_line = st.text_input("LINE ID *")
+        reg_pass = st.text_input("設定系統密碼 *", type="password")
+
+        if st.button("提交註冊並領取 100 幣 🪙"):
+            if not reg_name or not reg_sid or not reg_email or not reg_pass:
+                st.error("請完整填寫所有必填欄位！")
+            else:
+                try:
+                    conn = sqlite3.connect(DB_NAME)
+                    conn.execute(
+                        "INSERT INTO users (student_id, name, password, university, line_id, green_coins, email) VALUES (?, ?, ?, ?, ?, 100, ?)",
+                        (reg_sid, reg_name, reg_pass, reg_uni, reg_line, reg_email))
+                    conn.commit()
+                    conn.close()
+                    st.success("🎉 註冊成功！快切換到「同學登入」吧！")
+                except:
+                    st.error("在該校中此學號已被註冊過。")
+
+    elif mode == "❓ 忘記密碼":
+        st.info("忘記密碼功能請洽各校系統管理員。")
+
+# ==========================================
+# 4. 主功能區
+# ==========================================
+else:
+    current_student = st.session_state.student_id
+    current_uni = st.session_state.user_uni
+    current_name = st.session_state.user_name
+
+    with st.sidebar:
+        st.markdown("### 🧑‍🎓 攤主名片")
+        st.markdown(f"歡迎回來，**{current_name}** 同學！👋")
+        st.write(f"學校｜**{current_uni}**")
+        st.write(f"學號｜**{current_student}**")
+        st.metric(label="我的環保集點幣", value=f"{get_coins(current_student, current_uni)} 🪙")
+
+        st.markdown("---")
+        st.markdown("### 📊 我的交易與物資清單")
+
+        conn = sqlite3.connect(DB_NAME)
+        my_selling = pd.read_sql_query("SELECT id, name, price FROM products WHERE seller_id = ? AND status = '上架中'",
+                                       conn, params=(current_student,))
+        my_sales = pd.read_sql_query(
+            "SELECT name, price, status, final_trade_info FROM products WHERE seller_id = ? AND status = 'Ref售出' OR (seller_id = ? AND status = '已售出')",
+            conn, params=(current_student, current_student))
+        my_buys = pd.read_sql_query("SELECT name, price, university, final_trade_info FROM products WHERE buyer_id = ?",
+                                    conn, params=(current_student,))
+        my_vouchers = pd.read_sql_query("SELECT gift_name, code, timestamp, status FROM vouchers WHERE student_id = ?",
+                                        conn, params=(current_student,))
+        conn.close()
+
+        with st.expander(f"🏪 我正在賣的商品 ({len(my_selling)})"):
+            if my_selling.empty:
+                st.caption("目前沒有在售物品。")
+            else:
+                for _, r in my_selling.iterrows():
+                    col_pname, col_pbtn = st.columns([2, 1])
+                    with col_pname:
+                        st.markdown(f"**{r['name']}**<br><small style='color:green;'>售價: ${r['price']:.0f}</small>",
+                                    unsafe_allow_html=True)
+                    with col_pbtn:
+                        if st.button("🛑 下架", key=f"del_{r['id']}", use_container_width=True, type="secondary"):
+                            conn = sqlite3.connect(DB_NAME)
+                            conn.execute("UPDATE products SET status = '已下架' WHERE id = ?", (r['id'],))
+                            conn.commit()
+                            conn.close()
+                            st.toast(f"✅ 「{r['name']}」已成功移除！")
+                            time.sleep(0.5)
+                            st.rerun()
+
+        with st.expander(f"🤝 我已售出的商品 ({len(my_sales)})"):
+            if my_sales.empty:
+                st.caption("目前尚無售出物資紀錄。")
+            else:
+                for _, r in my_sales.iterrows():
+                    st.markdown(f"""
+                    <div class="record-box">
+                        <b>{r['name']}</b> <span style="color:green;">[已售出]</span><br>
+                        金額：${r['price']:.0f}<br>
+                        🤝 交易與寄送資料：{r['final_trade_info']}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        with st.expander(f"📦 我買進的商品 ({len(my_buys)})"):
+            if my_buys.empty:
+                st.caption("目前尚無購買物資紀錄。")
+            else:
+                for _, r in my_buys.iterrows():
+                    st.markdown(f"""
+                    <div class="record-box" style="background-color:#eef9ff;">
+                        <b>{r['name']}</b><br>
+                        金額：${r['price']:.0f} | 來源：{r['university']}<br>
+                        🤝 配送方式：{r['final_trade_info']}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        with st.expander(f"🎁 我兌換的福利商品 ({len(my_vouchers)})"):
+            if my_vouchers.empty:
+                st.caption("目前尚無點心兌換紀錄。")
+            else:
+                for _, r in my_vouchers.iterrows():
+                    st.markdown(f"""
+                    <div class="record-box" style="background-color:#fff5f5; border-left: 3px solid #ff6b6b;">
+                        <b>{r['gift_name']}</b><br>
+                        <span style="color:#e64980; font-family:monospace; font-weight:bold; font-size:14px;">序號：{r['code']}</span><br>
+                        <small style="color:#868e96;">兌換時間：{r['timestamp']}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        st.markdown("---")
+        if st.button("🚪 登出市集", type="secondary", use_container_width=True):
+            st.session_state.logged_in = False
+            st.rerun()
+
+    st.markdown('<div class="main-title">🛍 Honor 全國智慧服務選單</div>', unsafe_allow_html=True)
+    st.write("---")
+
+    row1_c1, row1_c2, row1_c3, row1_c4 = st.columns([1, 1, 1, 1])
+    with row1_c1:
+        if st.button("探索二手市集", use_container_width=True): st.session_state.current_menu = "探索二手市集"
+    with row1_c2:
+        if st.button("智慧物資上架", use_container_width=True): st.session_state.current_menu = "智慧物資上架"
+    with row1_c3:
+        if st.button("綠幣集點福利", use_container_width=True): st.session_state.current_menu = "綠幣集點福利"
+    with row1_c4:
+        if st.button("失物招領中心", use_container_width=True): st.session_state.current_menu = "失物招領中心"
+
+    st.write("---")
+
+    # ------------------------------------------
+    # 功能 1: 探索二手市集 (對應 368 鄉鎮市區與動態超商代碼)
+    # ------------------------------------------
+    if st.session_state.current_menu == "探索二手市集":
+        st.subheader("🪐 全國二手物資流通池")
+        f1, f2 = st.columns(2)
+        with f1:
+            search_cat = st.selectbox("📦 物品分類項目", PRODUCT_CATEGORIES)
+        with f2:
+            search_dept = st.selectbox("🎓 適用科系篩選", ["全部科系"] + YUNTECH_ALL_DEPTS)
+
+        conn = sqlite3.connect(DB_NAME)
+        query = "SELECT id, image_base64, name, price, category, university, department, description, shipping_method, shipping_link, seller_id FROM products WHERE is_blindbox = 0 AND status = '上架中'"
+        df = pd.read_sql_query(query, conn)
+        conn.close()
+
+
+        @st.dialog("🔍 商品完整詳情與敲定交易方式")
+        def show_product_details_dialog(prod_data):
+            st.write(f"### {prod_data['name']}")
+            if prod_data['image_base64']:
+                st.image(prod_data['image_base64'], use_container_width=True)
+
+            c_a, c_b = st.columns(2)
+            with c_a:
+                st.write(f"🏫 **出校園：** {prod_data['university']}")
+                st.write(f"💰 **物資售價：** ${prod_data['price']:.0f} 元")
+            with c_b:
+                st.write(f"🚚 **原定寄送：** {prod_data['shipping_method']}")
+                st.write(f"👤 **認證賣家：** {get_seller_masked_name(prod_data['seller_id'])} 同學")
+
+            st.info(f"💡 **商品完整描述：**\n{prod_data['description']}")
+
+            st.markdown("---")
+            st.markdown("#### 🤝 請買家自行選擇需要的配送方式")
+
+            buyer_ship_choice = st.selectbox("請選擇您想要的配送管道",
+                                             ["四大超商取貨（7-11、全家、萊爾富、OK）", "使用賣家提供的 賣貨便 / 好賣+ 網址",
+                                              "預約校園面交"])
+
+            final_memo_output = ""
+
+            if buyer_ship_choice == "使用賣家提供的 賣貨便 / 好賣+ 網址":
+                st.markdown("##### 🔗 賣家預設的專屬第三方賣場連結：")
+                if prod_data['shipping_link'] and prod_data['shipping_link'].strip() != "":
+                    st.markdown(f"""
+                    <div style="background:#eef9ff; padding:12px; border-radius:8px; border-left:4px solid #007bff; margin-bottom:10px;">
+                        🎈 賣家已建立外連賣場：<br>
+                        <a href="{prod_data['shipping_link']}" target="_blank" style="font-weight:bold; color:#007bff; text-decoration:underline;">👉 點我打開賣家專屬賣貨便賣場下單</a>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    final_memo_output = f"[賣貨便/好賣+] 買家已點擊前往外部連結：{prod_data['shipping_link']}"
+                else:
+                    st.warning("⚠️ 賣家上架時未附帶賣貨便超連結。請透過下方 LINE 聯繫賣家開單。")
+                    final_memo_output = "[賣貨便/好賣+] 待賣家提供網址"
+
+            elif buyer_ship_choice == "四大超商取貨（7-11、全家、萊爾富、OK）":
+                st.markdown("##### 📍 全台 368 鄉鎮市區電子地圖選店機制")
+                chain_choice = st.radio("選擇目標超商系統", ["7-11", "全家", "萊爾富", "OK"], horizontal=True)
+
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    sel_city = st.selectbox("選擇縣市", sorted(list(TW_368_DISTRICTS.keys())))
+                with c2:
+                    sel_dist = st.selectbox("選擇地區 (含368鄉鎮市區)", TW_368_DISTRICTS[sel_city])
+
+                dynamic_stores = [
+                    f"{sel_dist}站前店 ({100000 + hash(sel_dist) % 89999})",
+                    f"{sel_dist}大學店 ({120000 + hash(sel_dist) % 79999})",
+                    f"{sel_dist}新公園店 ({150000 + hash(sel_dist) % 69999})"
+                ]
+                with c3:
+                    sel_store = st.selectbox("點選超商門市", dynamic_stores)
+
+                formatted_store_info = f"[{chain_choice}] {sel_city}{sel_dist} - {sel_store}"
+                st.success(f"🎯 已鎖定配送門市格式：`{formatted_store_info}`")
+
+                b_name = st.text_input("收件人真實姓名", placeholder="請填寫證件相符姓名")
+                b_phone = st.text_input("收件人手機號碼", placeholder="例如：0912345678")
+                if b_name and b_phone:
+                    final_memo_output = f"{formatted_store_info} (收件人:{b_name}, 電話:{b_phone})"
+
+            else:
+                meet_memo = st.text_input("填寫面交時間與地點", placeholder="例如：週三中午在校園正門口...")
+                if meet_memo:
+                    final_memo_output = f"[校園面交] 約定地點：{meet_memo}"
+
+            s_line = get_user_line(prod_data['seller_id'])
+            st.markdown(
+                f'<a href="https://line.me/ti/p/~{s_line}" target="_blank" class="line-btn">💬 亦可私訊賣家 LINE 溝通</a>',
+                unsafe_allow_html=True)
+
+            if st.button("🚀 確定送出訂單（不扣幣，移入雙方清單）", use_container_width=True, type="primary"):
+                if prod_data['seller_id'] == current_student:
+                    st.error("不能購買自己上架的商品！")
+                elif final_memo_output == "":
+                    st.error("請確實填妥收件門市或面交細節資訊再送出！")
+                else:
+                    conn = sqlite3.connect(DB_NAME)
+                    conn.execute(
+                        "UPDATE products SET status = '已售出', buyer_id = ?, final_trade_info = ? WHERE id = ?",
+                        (current_student, final_memo_output, prod_data['id']))
+                    conn.commit()
+                    conn.close()
+                    st.success("🎉 訂單發送成功！格式已由系統統一標準化，快到左側「我的交易清單」查閱！")
+                    time.sleep(1.5)
+                    st.rerun()
+
+
+        if df.empty:
+            st.info("💡 目前市集商場尚無寶物在售。")
+        else:
+            for index, row in df.iterrows():
+                img_html = f"<img src='{row['image_base64']}' style='width:100%; border-radius:12px; object-fit:cover;' />" if \
+                row[
+                    'image_base64'] else "<div style='background-color:#f1f3f5;height:120px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#adb5bd;font-size:13px;'>📦 暫無商品照</div>"
+                masked_seller_name = get_seller_masked_name(row['seller_id'])
+
+                st.markdown(f"""
+                <div class="product-card">
+                    <div class="prod-img-container">{img_html}</div>
+                    <div class="prod-info-container">
+                        <h4 style="margin:0 0 8px 0; color:#212529;">{row['name']}</h4>
+                        <p style="margin:2px 0; font-size:13px; color:#6c757d;">🏫 學校：{row['university']}</p>
+                        <p style="margin:2px 0; font-size:13px; color:#6c757d;">🚚 賣家預設：{row['shipping_method']}</p>
+                        <p style="margin:8px 0 0 0; font-size:13px; color:#06C755;">👤 <b>賣家：</b>{masked_seller_name} 同學</p>
+                    </div>
+                    <div class="prod-action-container">
+                        <div class="price-tag">${row['price']:.0f}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if st.button(f"🔍 點此看詳細規格或下單流程（品名：{row['name']}）", key=f"view_{row['id']}",
+                             use_container_width=True):
+                    show_product_details_dialog(row)
+
+    # ------------------------------------------
+    # 功能 2: 智慧物資上架
+    # ------------------------------------------
+    elif st.session_state.current_menu == "智慧物資上架":
+        st.subheader("🏪 多元物資快速上架櫃檯")
+        with st.form("upload_form", clear_on_submit=True):
+            p_name = st.text_input("物品名稱", placeholder="例如：微積分課本")
+            p_price = st.number_input("欲售金額 (TWD)", min_value=0, value=100)
+            p_shipping = st.selectbox("🚚 建議運送形式", ["校園面交", "7-11 賣貨便", "全家好賣+"])
+            p_link = st.text_input("🔗 第三方賣場連結（若有，買家下單時會直接彈出網址）",
+                                   placeholder="https://myship.7-11.com.tw/...")
+            p_desc = st.text_area("物況詳細說明")
+            p_file = st.file_uploader("📸 上傳商品實體照", type=['png', 'jpg', 'jpeg'])
+
+            if st.form_submit_button("🚀 發布至校園市集"):
+                if p_name and p_desc:
+                    b64_str = ""
+                    if p_file is not None:
+                        img = Image.open(p_file).convert("RGB")
+                        img.thumbnail((300, 300))
+                        buffered = io.BytesIO()
+                        img.save(buffered, format="JPEG")
+                        b64_str = f"data:image/jpeg;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+
+                    conn = sqlite3.connect(DB_NAME)
+                    conn.execute(
+                        'INSERT INTO products (name, price, category, university, department, description, shipping_method, shipping_link, seller_id, image_base64) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        (p_name, p_price, "生活雜物", current_uni, "不限科系/共同通識核心", p_desc, p_shipping, p_link,
+                         current_student, b64_str))
+                    conn.commit()
+                    conn.close()
+                    modify_coins(current_student, current_uni, 10)
+                    st.success("🎉 上架成功！")
+                    st.rerun()
+
+    # ------------------------------------------
+    # 功能 3: 綠幣集點福利
+    # ------------------------------------------
+    elif st.session_state.current_menu == "綠幣集點福利":
+        st.subheader("🪙 環保低碳集點福利社")
+        user_coins = get_coins(current_student, current_uni)
+        st.info(f"當前可用積點： {user_coins} 🪙")
+
+        gifts = [
+            {"name": "全家 77乳加巧克力 🍫", "cost": 30},
+            {"name": "校園影印店 50元抵用券 📑", "cost": 60}
+        ]
+
+        for idx, g in enumerate(gifts):
+            st.markdown(f"""
+            <div style="background:#ffffff; padding:15px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.02); margin-bottom:12px;">
+                <h5 style="margin:0 0 5px 0;">{g['name']}</h5>
+                <p style="margin:0; color:#06C755; font-weight:bold;">所需點數：{g['cost']} 點</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("確認兌換", key=f"g_{idx}", use_container_width=True):
+                if user_coins >= g['cost']:
+                    modify_coins(current_student, current_uni, -g['cost'])
+                    v_code = f"CM-{random.randint(100000, 999999)}"
+                    conn = sqlite3.connect(DB_NAME)
+                    conn.execute("INSERT INTO vouchers (student_id, gift_name, code, timestamp) VALUES (?, ?, ?, ?)",
+                                 (current_student, g['name'], v_code, "2026-06-02"))
+                    conn.commit()
+                    conn.close()
+                    st.balloons()
+                    st.success(f"🎉 兌換成功！序號 {v_code} 已同步存入左側「我兌換的福利商品」清單中。")
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error("點數不足")
+
+    # ------------------------------------------
+    # 功能 4: 失物招領中心
+    # ------------------------------------------
+    elif st.session_state.current_menu == "失物招領中心":
+        st.subheader("📍 全國大學生聯防失物招領中心")
+        m_tab1, m_tab2 = st.tabs(["🔍 招領佈告欄", "➕ 發布失物通報"])
+
+        with m_tab1:
+            sub_tab_local, sub_tab_national = st.tabs([f"🏫 本校公告 ({current_uni})", "🌐 全台跨校聯防"])
+
+            with sub_tab_local:
+                conn = sqlite3.connect(DB_NAME)
+                query_local = "SELECT id, region, university, item_name, place, contact_location, description, image_base64, finder_id FROM lost_found WHERE status='招領中' AND university=?"
+                df_local = pd.read_sql_query(query_local, conn, params=(current_uni,))
+                conn.close()
+
+                if df_local.empty:
+                    st.info(f"💡 目前 {current_uni} 暫無校內失物招領公告。")
+                else:
+                    for idx, row in df_local.iterrows():
+                        masked_finder_name = get_seller_masked_name(row['finder_id'])
+                        st.markdown(f"""
+                        <div class="lost-card" style="border-left: 5px solid #2ecc71; background-color: #fafffa;">
+                            <h5>🔍 【本校專區】{row['item_name']}</h5>
+                            <p style='margin:2px 0; font-size:13px;'>📍 <b>拾獲地點：</b>{row['place']}</p>
+                            <p style='margin:2px 0; font-size:13px; color:#e67e22;'>🏢 <b>認領位置：</b>{row['contact_location']}</p>
+                            <p style='margin:2px 0; font-size:13px; color:#7f8c8d;'>👤 <b>善心拾獲人：</b>{masked_finder_name} 同學</p>
+                            <small>備註：{row['description']}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        if row['image_base64']: st.image(row['image_base64'], width=220)
+                        if st.button("✨ 本校物歸原主（撤除公告）", key=f"res_local_{row['id']}",
+                                     use_container_width=True):
+                            conn = sqlite3.connect(DB_NAME)
+                            conn.execute("UPDATE lost_found SET status='已認領' WHERE id=?", (row['id'],))
+                            conn.commit()
+                            conn.close()
+                            st.success("🎉 順利撤除校內公告。")
+                            time.sleep(0.5)
+                            st.rerun()
+
+            with sub_tab_national:
+                st.write("🌐 篩選其他學校的失物看板：")
+                c_t1, c_t2 = st.columns(2)
+                with c_t1:
+                    nat_type = st.selectbox("學校體系篩選", list(CAMPUS_TYPE_MAP.keys()))
+                with c_t2:
+                    search_nat_uni = st.selectbox("特定學校篩選",
+                                                  ["全部學校"] + [u for u in CAMPUS_TYPE_MAP[nat_type] if
+                                                                  u != current_uni])
+
+                conn = sqlite3.connect(DB_NAME)
+                if search_nat_uni == "全部學校":
+                    placeholders = ','.join(['?'] * len(CAMPUS_TYPE_MAP[nat_type]))
+                    query_nat = f"SELECT id, region, university, item_name, place, contact_location, description, image_base64, finder_id FROM lost_found WHERE status='招領中' AND university != ? AND university IN ({placeholders})"
+                    params = [current_uni] + CAMPUS_TYPE_MAP[nat_type]
+                    df_nat = pd.read_sql_query(query_nat, conn, params=params)
+                else:
+                    query_nat = "SELECT id, region, university, item_name, place, contact_location, description, image_base64, finder_id FROM lost_found WHERE status='招領中' AND university = ?"
+                    df_nat = pd.read_sql_query(query_nat, conn, params=(search_nat_uni,))
+                conn.close()
+
+                if df_nat.empty:
+                    st.info("💡 目前所選之其他大學暫無失物招領公告。")
+                else:
+                    for idx, row in df_nat.iterrows():
+                        masked_finder_name = get_seller_masked_name(row['finder_id'])
+                        st.markdown(f"""
+                        <div class="lost-card">
+                            <h5>🔍 【{row['university']}】{row['item_name']}</h5>
+                            <p style='margin:2px 0; font-size:13px;'>📍 <b>拾獲地點：</b>{row['place']}</p>
+                            <p style='margin:2px 0; font-size:13px; color:#e67e22;'>🏢 <b>認領位置：</b>{row['contact_location']}</p>
+                            <p style='margin:2px 0; font-size:13px; color:#7f8c8d;'>👤 <b>善心拾獲人：</b>{masked_finder_name} 同學</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        if row['image_base64']: st.image(row['image_base64'], width=220)
+                        if st.button("✨ 跨校物歸原主（撤除公告）", key=f"res_nat_{row['id']}", use_container_width=True):
+                            conn = sqlite3.connect(DB_NAME)
+                            conn.execute("UPDATE lost_found SET status='已認領' WHERE id=?", (row['id'],))
+                            conn.commit()
+                            conn.close()
+                            st.success("🎉 已順利撤除公告。")
+                            time.sleep(0.5)
+                            st.rerun()
+
+        with m_tab2:
+            st.write("#### ➕ 填寫失物通報單")
+            with st.form("lost_form", clear_on_submit=True):
+                l_type = st.selectbox("拾獲物品學校體系 *", list(CAMPUS_TYPE_MAP.keys()))
+                l_uni = st.selectbox("拾獲物品所屬學校 *", CAMPUS_TYPE_MAP[l_type])
+                l_name = st.text_input("失物名稱 *", placeholder="例如：AirPods 左耳")
+                l_place = st.text_input("詳細拾獲位置 *", placeholder="例如：綜大 1 樓飲水機旁")
+                l_contact = st.text_input("目前暫存領取地點 *", placeholder="例如：生輔組櫃檯")
+                l_desc = st.text_area("外觀、顏色等特徵備註")
+                l_file = st.file_uploader("📸 上傳失物實體照（選填）", type=['png', 'jpg', 'jpeg'])
+
+                if st.form_submit_button("📢 發布全台聯防公告"):
+                    if l_name and l_place and l_contact:
+                        lost_b64 = ""
+                        if l_file is not None:
+                            img = Image.open(l_file).convert("RGB")
+                            img.thumbnail((300, 300))
+                            buffered = io.BytesIO()
+                            img.save(buffered, format="JPEG")
+                            lost_b64 = f"data:image/jpeg;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+
+                        conn = sqlite3.connect(DB_NAME)
+                        conn.execute(
+                            "INSERT INTO lost_found (region, university, item_name, place, contact_location, description, finder_id, image_base64) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (l_type, l_uni, l_name, l_place, l_contact, l_desc, current_student, lost_b64))
+                        conn.commit()
+                        conn.close()
+                        modify_coins(current_student, current_uni, 15)
+                        st.balloons()
+                        st.success("🎉 聯防公告發布成功！")
+                        time.sleep(1)
+                        st.rerun()
