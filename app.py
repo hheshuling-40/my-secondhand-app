@@ -1058,16 +1058,21 @@ else:
             if "card_number" not in st.session_state:
                 st.session_state.card_number = ""
 
+            # 讀取當前的輸入內容
             input_cc = st.text_input("💳 信用卡卡號", value=st.session_state.card_number,
                                      placeholder="4000 1234 5678 9010")
 
+            # 【核心修正】：將輸入的內容洗掉非數字字元，最多抓前16碼純數字
             cleaned_digits = re.sub(r"\D", "", input_cc)[:16]
+
+            # 每隔 4 位數自動補一個空格，使用者手打到第 5、9、13 碼時會瞬間自動排版
             formatted_cc = ""
             for i in range(len(cleaned_digits)):
                 if i > 0 and i % 4 == 0:
                     formatted_cc += " "
                 formatted_cc += cleaned_digits[i]
 
+            # 如果重組後的字串跟使用者目前畫面看到的不一樣，則覆寫並觸發即時重新渲染
             if input_cc != formatted_cc:
                 st.session_state.card_number = formatted_cc
                 st.rerun()
