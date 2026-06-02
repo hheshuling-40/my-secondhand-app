@@ -343,9 +343,11 @@ if not st.session_state.logged_in:
     mode = st.radio("請選擇操作項目：", ["🔑 同學登入", "📝 新同學註冊帳號", "❓ 忘記密碼"], horizontal=True)
 
     if mode == "🔑 同學登入":
+        log_type = st.selectbox("請選擇體系類型", CAMPUS_LABELS)
+        # 修正：這裡的學校清單必須根據上方 log_type 動態選取對應的學校名單
+        log_uni = st.selectbox("請選取您的就讀學校", CAMPUS_TYPE_MAP[log_type])
+
         with st.form("login_form"):
-            log_type = st.selectbox("請選擇體系類型", CAMPUS_LABELS)
-            log_uni = st.selectbox("請選取您的就讀學校", CAMPUS_TYPE_MAP[log_type])
             sid = st.text_input("學號", placeholder="請輸入學號")
             pas = st.text_input("密碼", type="password", placeholder="請輸入密碼")
             if st.form_submit_button("登入市集"):
