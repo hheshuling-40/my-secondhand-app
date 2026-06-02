@@ -175,6 +175,10 @@ CAMPUS_TYPE_MAP = {
     ]
 }
 
+# 動態生成含數量的體系選單標籤對照表 (例如 "公立學校" -> "公立學校 (共47所)")
+CAMPUS_LABEL_TO_KEY = {f"{k} (共{len(v)}所)": k for k, v in CAMPUS_TYPE_MAP.items()}
+CAMPUS_LABELS = list(CAMPUS_LABEL_TO_KEY.keys())
+
 TW_368_DISTRICTS = {
     "臺北市": ["中正區", "大同區", "中山區", "松山區", "大安區", "萬華區", "信義區", "士林區", "北投區", "內湖區",
                "南港區", "文山區"],
@@ -343,8 +347,8 @@ if not st.session_state.logged_in:
 
     if mode == "🔑 同學登入":
         with st.form("login_form"):
-            log_type = st.selectbox("請選擇體系類型", list(CAMPUS_TYPE_MAP.keys()))
-            log_uni = st.selectbox("請選取您的就讀學校", CAMPUS_TYPE_MAP[log_type])
+            log_type_label = st.selectbox("請選擇體系類型", CAMPUS_LABELS)
+            log_uni = st.selectbox("請選取您的就讀學校", CAMPUS_TYPE_MAP[CAMPUS_LABEL_TO_KEY[log_type_label]])
             sid = st.text_input("學號", placeholder="請輸入學號")
             pas = st.text_input("密碼", type="password", placeholder="請輸入密碼")
             if st.form_submit_button("登入市集"):
@@ -367,8 +371,8 @@ if not st.session_state.logged_in:
         reg_name = st.text_input("您的真實姓名/稱呼 *")
         reg_sid = st.text_input("註冊學號 *")
         reg_email = st.text_input("學校聯絡電子郵件 *")
-        reg_type = st.selectbox("學校體系類型 *", list(CAMPUS_TYPE_MAP.keys()))
-        reg_uni = st.selectbox("所屬大學 *", CAMPUS_TYPE_MAP[reg_type])
+        reg_type_label = st.selectbox("學校體系類型 *", CAMPUS_LABELS)
+        reg_uni = st.selectbox("所屬大學 *", CAMPUS_TYPE_MAP[CAMPUS_LABEL_TO_KEY[reg_type_label]])
         reg_line = st.text_input("LINE ID *")
         reg_pass = st.text_input("設定系統密碼 *", type="password")
 
@@ -555,14 +559,14 @@ else:
                     final_memo_output = "[賣貨便/好賣+] 待賣家提供網址"
 
             elif buyer_ship_choice == "四大超商取貨（7-11、全家、萊爾富、OK）":
-                st.markdown("##### 📍 全台 368 鄉鎮市區電子地圖選店機制")
+                st.markdown("##### 📍 全台電子地圖選店機制")
                 chain_choice = st.radio("選擇目標超商系統", ["7-11", "全家", "萊爾富", "OK"], horizontal=True)
 
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     sel_city = st.selectbox("選擇縣市", sorted(list(TW_368_DISTRICTS.keys())))
                 with c2:
-                    sel_dist = st.selectbox("選擇地區 (含368鄉鎮市區)", TW_368_DISTRICTS[sel_city])
+                    sel_dist = st.selectbox("選擇地區", TW_368_DISTRICTS[sel_city])
 
                 dynamic_stores = [
                     f"{sel_dist}站前店 ({100000 + hash(sel_dist) % 89999})",
@@ -709,7 +713,7 @@ else:
     # ------------------------------------------
     # 功能 4: 失物招領中心
     # ------------------------------------------
-    elif st.session_state.current_menu == "失物招領中心":
+    elif st.session_state.current_menu == "失物招招領中心":
         st.subheader("📍 全國大學生聯防失物招領中心")
         m_tab1, m_tab2 = st.tabs(["🔍 招領佈告欄", "➕ 發布失物通報"])
 
@@ -751,7 +755,8 @@ else:
                 st.write("🌐 篩選其他學校的失物看板：")
                 c_t1, c_t2 = st.columns(2)
                 with c_t1:
-                    nat_type = st.selectbox("學校體系篩選", list(CAMPUS_TYPE_MAP.keys()))
+                    nat_type_label = st.selectbox("學校體系篩選", CAMPUS_LABELS)
+                nat_type = CAMPUS_LABEL_TO_KEY[nat_type_label]
                 with c_t2:
                     search_nat_uni = st.selectbox("特定學校篩選",
                                                   ["全部學校"] + [u for u in CAMPUS_TYPE_MAP[nat_type] if
@@ -794,8 +799,8 @@ else:
         with m_tab2:
             st.write("#### ➕ 填寫失物通報單")
             with st.form("lost_form", clear_on_submit=True):
-                l_type = st.selectbox("拾獲物品學校體系 *", list(CAMPUS_TYPE_MAP.keys()))
-                l_uni = st.selectbox("拾獲物品所屬學校 *", CAMPUS_TYPE_MAP[l_type])
+                l_type_label = st.selectbox("拾獲物品學校體系 *", CAMPUS_LABELS)
+                l_uni = st.selectbox("拾獲物品所屬學校 *", CAMPUS_TYPE_MAP[CAMPUS_LABEL_TO_KEY[l_type_label]])
                 l_name = st.text_input("失物名稱 *", placeholder="例如：AirPods 左耳")
                 l_place = st.text_input("詳細拾獲位置 *", placeholder="例如：綜大 1 樓飲水機旁")
                 l_contact = st.text_input("目前暫存領取地點 *", placeholder="例如：生輔組櫃檯")
@@ -815,7 +820,8 @@ else:
                         conn = sqlite3.connect(DB_NAME)
                         conn.execute(
                             "INSERT INTO lost_found (region, university, item_name, place, contact_location, description, finder_id, image_base64) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                            (l_type, l_uni, l_name, l_place, l_contact, l_desc, current_student, lost_b64))
+                            (CAMPUS_LABEL_TO_KEY[l_type_label], l_uni, l_name, l_place, l_contact, l_desc,
+                             current_student, lost_b64))
                         conn.commit()
                         conn.close()
                         modify_coins(current_student, current_uni, 15)
