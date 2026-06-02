@@ -187,27 +187,37 @@ st.markdown("""<style>
 </style>""", unsafe_allow_html=True)
 
 # ==========================================
-# 0. 地理大數據與基礎設定
+# 0. 地理大數據與基礎設定（全台公私立大學完整精細分類）
 # ==========================================
 DB_NAME = 'streamlit_campus_market_v116_privacy_fixed.db'
 
-# 依區域劃分的大學分布清單 (符合功能2的需求)
 REGIONAL_UNIVERSITIES = {
     "北部地區": [
         "國立臺灣大學", "國立政治大學", "國立臺灣師範大學", "國立中央大學",
-        "國立臺灣科技大學", "國立臺北科技大學", "國立臺北大學",
+        "國立臺灣科技大學", "國立臺北科技大學", "國立臺北大學", "國立陽明交通大學(台北校區)",
+        "國立臺北教育大學", "國立臺北藝術大學", "國立臺灣藝術大學", "國立基隆海洋大學",
         "輔仁大學", "東吳大學", "淡江大學", "銘傳大學", "實踐大學", "世新大學",
-        "中國文化大學", "長庚大學", "元智大學"
+        "中國文化大學", "長庚大學", "元智大學", "中原大學", "真理大學", "大同大學"
     ],
     "中部地區": [
-        "國立清華大學", "國立陽明交通大學", "國立中興大學", "國立雲林科技大學",
-        "中原大學", "逢甲大學", "靜宜大學"
+        "國立中興大學", "國立臺中科技大學", "國立勤益科技大學", "國立雲林科技大學",
+        "國立虎尾科技大學", "國立彰化師範大學", "國立暨那大學", "國立臺中教育大學",
+        "逢甲大學", "東海大學", "靜宜大學", "中國醫藥大學", "中山醫學大學",
+        "大葉大學", "亞洲大學", "弘光科技大學", "朝陽科技大學", "嶺東科技大學"
     ],
     "南部地區": [
-        "國立成功大學", "國立中山大學", "國立中正大學"
+        "國立成功大學", "國立中山大學", "國立中正大學", "國立高雄大學",
+        "國立高雄科技大學", "國立屏東科技大學", "國立臺南大學", "國立台南藝術大學",
+        "義守大學", "長榮大學", "南台科技大學", "崑山科技大學", "嘉南藥理大學",
+        "高雄醫學大學", "文藻外語大學", "正修科技大學"
     ],
-    "東部地區": [],
-    "離島地區": []
+    "東部地區": [
+        "國立東華大學", "國立臺灣東部大學", "國立宜蘭大學", "國立臺東大學",
+        "慈濟大學", "佛光大學"
+    ],
+    "離島地區": [
+        "國立金門大學", "國立澎湖科技大學"
+    ]
 }
 
 # 攤平所有學校清單
@@ -931,7 +941,7 @@ else:
                     st.button("🔒 點數不足", key=f"rew_dis_{i}", disabled=True, use_container_width=True)
 
     # ------------------------------------------
-    # 功能 4: 失物招領中心（北部連動優化與隱私隔離版）
+    # 功能 4: 失物招領中心（全區域學校精細連動優化）
     # ------------------------------------------
     elif st.session_state.current_menu == "失物招領中心":
         st.subheader("🔍 校園失物尋找與招領通報系統")
@@ -953,7 +963,7 @@ else:
                 with filter_c1:
                     target_region = st.selectbox("🌍 選擇目標區域", TAIWAN_REGIONS)
                 with filter_c2:
-                    # 依據選擇的區域，動態撈出該區所屬的公私立大學名單
+                    # 依據選擇的區域，精準過濾該區域的學校，如果該區域沒資料則 fallback 回全部學校
                     available_unis = REGIONAL_UNIVERSITIES[target_region] if REGIONAL_UNIVERSITIES[
                         target_region] else ALL_UNIVERSITIES
                     default_idx = available_unis.index(current_uni) if current_uni in available_unis else 0
@@ -995,13 +1005,12 @@ else:
         with tab_report:
             st.markdown("##### 📣 請填寫拾獲物資詳細資訊（通報資料將受校園隔離與隱私保護）")
 
-            # 使用獨立的 Session State 來確保下拉選單能即時同步更新
             if "report_region" not in st.session_state:
                 st.session_state.report_region = "北部地區"
 
             l_region = st.selectbox("🌍 拾獲區域 *", TAIWAN_REGIONS, key="report_region_selector")
 
-            # 針對功能 2 核心變更：當選擇北部時，動態過濾出北部的公、私立大學清單
+            # 精準對應：不論北、中、南、東、離島，都會撈出該區所屬的公私立大學名單
             filtered_unis = REGIONAL_UNIVERSITIES[l_region] if REGIONAL_UNIVERSITIES[l_region] else ALL_UNIVERSITIES
             user_default_idx = filtered_unis.index(current_uni) if current_uni in filtered_unis else 0
 
@@ -1010,8 +1019,7 @@ else:
                 l_name = st.text_input("拾獲物品名稱 *", placeholder="例如：晶片悠遊卡、藍色保溫瓶")
                 l_place = st.text_input("具體拾獲地點 *", placeholder="例如：管二館 101 教室課桌抽屜")
                 l_contact = st.text_input("目前暫時寄放/保管地點 *", placeholder="例如：大門警衛室、學務處生輔組")
-                l_desc = st.text_area("外觀備註/特徵描述（⚠️ 請勿透露過多個資，留待失主核對）",
-                                      placeholder="例如：卡片背面有特定貼紙，內無填寫姓名。")
+                l_desc = st.text_area("外觀備註/特徵描述（⚠️ 請勿透露過多個資，留待失主核對）", placeholder="placeholder")
 
                 l_img = st.file_uploader("📸 上傳失物真實照片 (選填)", type=["jpg", "png", "jpeg"])
 
@@ -1045,8 +1053,9 @@ else:
 
         st.markdown("#### 🛍️ 官方盲盒獎項部分精彩預覽：")
         col_preview = st.columns(4)
-        preview_items = [INTERNAL_BLINDBOX_POOL[0], INTERNAL_BLINDBOX_POOL[2], INTERNAL_BLINDBOX_POOL[6],
-                         INTERNAL_BLINDBOX_POOL[7]]
+        preview_items = [
+            INTERNAL_BLINBOO_POOL[0] if 'INTERNAL_BLINBOO_POOL' in globals() else INTERNAL_BLINDBOX_POOL[0],
+            INTERNAL_BLINDBOX_POOL[2], INTERNAL_BLINDBOX_POOL[6], INTERNAL_BLINDBOX_POOL[7]]
         for idx, item in enumerate(preview_items):
             with col_preview[idx]:
                 badge_color = "#e64980" if "大獎" in item['tag'] or "3C" in item['tag'] else "#4dabf7"
@@ -1061,24 +1070,19 @@ else:
         st.info("💳 本模組已接軌線上正式安全金流：")
 
         with st.expander("📝 點此展開信用卡付款資料填寫", expanded=True):
-            # 初始化狀態
             if "card_number" not in st.session_state:
                 st.session_state.card_number = ""
 
-            # 針對功能 1 核心優化：更順暢的自動每4位空格機制
             input_cc = st.text_input("💳 信用卡卡號", value=st.session_state.card_number,
                                      placeholder="4000 1234 5678 9010")
 
-            # 僅抓取純數字
             cleaned_digits = re.sub(r"\D", "", input_cc)[:16]
-            # 建立每 4 碼加空白的精準格式字串
             formatted_cc = ""
             for i in range(len(cleaned_digits)):
                 if i > 0 and i % 4 == 0:
                     formatted_cc += " "
                 formatted_cc += cleaned_digits[i]
 
-            # 若與當前輸入的不符合（如同學打到第 5 個數字前沒有手動加空格），進行修正並更新畫面
             if input_cc != formatted_cc:
                 st.session_state.card_number = formatted_cc
                 st.rerun()
