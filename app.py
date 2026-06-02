@@ -23,7 +23,7 @@ st.markdown("""
         font-size: clamp(22px, 4vw, 30px);
         font-weight: 800;
         color: #212529;
-        margin-bottom: 5px;
+        margin-bottom: 20px;
     }
     div[data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
@@ -137,7 +137,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 0. 萬全地理大數據：完整台灣 368 個鄉鎮市區
+# 0. 地理大數據：完整台灣 368 個鄉鎮市區
 # ==========================================
 DB_NAME = 'streamlit_campus_market_v116_perfect_taiwan_fixed.db'
 
@@ -175,9 +175,7 @@ CAMPUS_TYPE_MAP = {
     ]
 }
 
-# 動態生成含數量的體系選單標籤對照表 (例如 "公立學校" -> "公立學校 (共47所)")
-CAMPUS_LABEL_TO_KEY = {f"{k} (共{len(v)}所)": k for k, v in CAMPUS_TYPE_MAP.items()}
-CAMPUS_LABELS = list(CAMPUS_LABEL_TO_KEY.keys())
+CAMPUS_LABELS = list(CAMPUS_TYPE_MAP.keys())
 
 TW_368_DISTRICTS = {
     "臺北市": ["中正區", "大同區", "中山區", "松山區", "大安區", "萬華區", "信義區", "士林區", "北投區", "內湖區",
@@ -340,15 +338,14 @@ def modify_coins(student_id, university, amount):
 # 3. 登入 / 註冊區
 # ==========================================
 if not st.session_state.logged_in:
-    st.markdown('<div class="main-title">🎓 Campus Market 全国大學生智慧市集</div>', unsafe_allow_html=True)
-    st.write("已整合全台 368 完整鄉鎮市區大數據與 139 所大專院校系統。")
+    st.markdown('<div class="main-title">🎓 Campus Market 全國大學生智慧市集</div>', unsafe_allow_html=True)
 
     mode = st.radio("請選擇操作項目：", ["🔑 同學登入", "📝 新同學註冊帳號", "❓ 忘記密碼"], horizontal=True)
 
     if mode == "🔑 同學登入":
         with st.form("login_form"):
-            log_type_label = st.selectbox("請選擇體系類型", CAMPUS_LABELS)
-            log_uni = st.selectbox("請選取您的就讀學校", CAMPUS_TYPE_MAP[CAMPUS_LABEL_TO_KEY[log_type_label]])
+            log_type = st.selectbox("請選擇體系類型", CAMPUS_LABELS)
+            log_uni = st.selectbox("請選取您的就讀學校", CAMPUS_TYPE_MAP[log_type])
             sid = st.text_input("學號", placeholder="請輸入學號")
             pas = st.text_input("密碼", type="password", placeholder="請輸入密碼")
             if st.form_submit_button("登入市集"):
@@ -371,8 +368,8 @@ if not st.session_state.logged_in:
         reg_name = st.text_input("您的真實姓名/稱呼 *")
         reg_sid = st.text_input("註冊學號 *")
         reg_email = st.text_input("學校聯絡電子郵件 *")
-        reg_type_label = st.selectbox("學校體系類型 *", CAMPUS_LABELS)
-        reg_uni = st.selectbox("所屬大學 *", CAMPUS_TYPE_MAP[CAMPUS_LABEL_TO_KEY[reg_type_label]])
+        reg_type = st.selectbox("學校體系類型 *", CAMPUS_LABELS)
+        reg_uni = st.selectbox("所屬大學 *", CAMPUS_TYPE_MAP[reg_type])
         reg_line = st.text_input("LINE ID *")
         reg_pass = st.text_input("設定系統密碼 *", type="password")
 
@@ -487,7 +484,7 @@ else:
             st.session_state.logged_in = False
             st.rerun()
 
-    st.markdown('<div class="main-title">🛍 Honor 全國智慧服務選單</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-title">🛍 全國大學生智慧市集</div>', unsafe_allow_html=True)
     st.write("---")
 
     row1_c1, row1_c2, row1_c3, row1_c4 = st.columns([1, 1, 1, 1])
@@ -503,7 +500,7 @@ else:
     st.write("---")
 
     # ------------------------------------------
-    # 功能 1: 探索二手市集 (對應 368 鄉鎮市區與動態超商代碼)
+    # 功能 1: 探索二手市集
     # ------------------------------------------
     if st.session_state.current_menu == "探索二手市集":
         st.subheader("🪐 全國二手物資流通池")
@@ -713,7 +710,7 @@ else:
     # ------------------------------------------
     # 功能 4: 失物招領中心
     # ------------------------------------------
-    elif st.session_state.current_menu == "失物招招領中心":
+    elif st.session_state.current_menu == "失物招領中心":
         st.subheader("📍 全國大學生聯防失物招領中心")
         m_tab1, m_tab2 = st.tabs(["🔍 招領佈告欄", "➕ 發布失物通報"])
 
@@ -755,8 +752,7 @@ else:
                 st.write("🌐 篩選其他學校的失物看板：")
                 c_t1, c_t2 = st.columns(2)
                 with c_t1:
-                    nat_type_label = st.selectbox("學校體系篩選", CAMPUS_LABELS)
-                nat_type = CAMPUS_LABEL_TO_KEY[nat_type_label]
+                    nat_type = st.selectbox("學校體系篩選", CAMPUS_LABELS)
                 with c_t2:
                     search_nat_uni = st.selectbox("特定學校篩選",
                                                   ["全部學校"] + [u for u in CAMPUS_TYPE_MAP[nat_type] if
@@ -799,8 +795,8 @@ else:
         with m_tab2:
             st.write("#### ➕ 填寫失物通報單")
             with st.form("lost_form", clear_on_submit=True):
-                l_type_label = st.selectbox("拾獲物品學校體系 *", CAMPUS_LABELS)
-                l_uni = st.selectbox("拾獲物品所屬學校 *", CAMPUS_TYPE_MAP[CAMPUS_LABEL_TO_KEY[l_type_label]])
+                l_type = st.selectbox("拾獲物品學校體系 *", CAMPUS_LABELS)
+                l_uni = st.selectbox("拾獲物品所屬學校 *", CAMPUS_TYPE_MAP[l_type])
                 l_name = st.text_input("失物名稱 *", placeholder="例如：AirPods 左耳")
                 l_place = st.text_input("詳細拾獲位置 *", placeholder="例如：綜大 1 樓飲水機旁")
                 l_contact = st.text_input("目前暫存領取地點 *", placeholder="例如：生輔組櫃檯")
@@ -820,8 +816,7 @@ else:
                         conn = sqlite3.connect(DB_NAME)
                         conn.execute(
                             "INSERT INTO lost_found (region, university, item_name, place, contact_location, description, finder_id, image_base64) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                            (CAMPUS_LABEL_TO_KEY[l_type_label], l_uni, l_name, l_place, l_contact, l_desc,
-                             current_student, lost_b64))
+                            (l_type, l_uni, l_name, l_place, l_contact, l_desc, current_student, lost_b64))
                         conn.commit()
                         conn.close()
                         modify_coins(current_student, current_uni, 15)
