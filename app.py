@@ -571,166 +571,155 @@ else:
                 st.write("系統檢測到您在 Campus Market 累計交易與招領通報已達標！點擊下方按鈕啟動轉盤：")
                 if st.button("🎰 開始抽獎", use_container_width=True, type="primary"):
                     with st.spinner("轉盤瘋狂旋轉中...🌀"):
-                        time.sleep(1.5
-                        ")
-                        prize_pool = ["50 點綠幣 🪙", "100 點綠幣 🪙", "全家 35元微波點心折價券 🍰",
-                                      "學辦特調冰美式咖啡 ☕", "期末歐趴糖一包 🍬", "免運通關券 🚚"]
-                        won_prize = random.choice(prize_pool)
-                        st.balloons()
-                        st.success(f"🎊 恭喜抽中：【{won_prize}】！")
-                        if "50 點綠幣" in won_prize:
-                            modify_coins(current_student, current_uni, 50)
-                        elif "100 點綠幣" in won_prize:
-                            modify_coins(current_student, current_uni, 100)
-                        else:
-                            v_code = f"DRAW-{random.randint(100000, 999999)}"
+                        time.sleep(1.5)
+                    prize_pool = ["50 點綠幣 🪙", "100 點綠幣 🪙", "全家 35元微波點心折價券 🍰", "學辦特調冰美式咖啡 ☕",
+                                  "期末歐趴糖一包 🍬", "免運通關券 🚚"]
+                    won_prize = random.choice(prize_pool)
+                    st.balloons()
+                    st.success(f"🎊 恭喜抽中：【{won_prize}】！")
+                    if "50 點綠幣" in won_prize:
+                        modify_coins(current_student, current_uni, 50)
+                    elif "100 點綠幣" in won_prize:
+                        modify_coins(current_student, current_uni, 100)
+                    else:
+                        v_code = f"DRAW-{random.randint(100000, 999999)}"
                         conn = sqlite3.connect(DB_NAME)
                         conn.execute(
                             "INSERT INTO vouchers (student_id, gift_name, code, timestamp, status) VALUES (?, ?, ?, ?, '未使用')",
                             (current_student, f"【抽獎贏得】{won_prize}", v_code, "2026-06-02"))
                         conn.commit()
                         conn.close()
-                        st.info("💡 實體獎勵換領序號已同步保存至下方的福利商品清單中。")
-                        conn = sqlite3.connect(DB_NAME)
-                        rem_to_deduct = 5
-                        if buy_cnt >= rem_to_deduct:
-                            conn.execute(
-                                "UPDATE users SET buy_count = buy_count - 5 WHERE student_id = ? AND university = ?",
-                                (current_student, current_uni))
-                        else:
-                            rem_to_deduct -= buy_cnt
+                    st.info("💡 實體獎勵換領序號已同步保存至下方的福利商品清單中。")
+                    conn = sqlite3.connect(DB_NAME)
+                    rem_to_deduct = 5
+                    if buy_cnt >= rem_to_deduct:
+                        conn.execute(
+                            "UPDATE users SET buy_count = buy_count - 5 WHERE student_id = ? AND university = ?",
+                            (current_student, current_uni))
+                    else:
+                        rem_to_deduct -= buy_cnt
                         conn.execute(
                             "UPDATE users SET buy_count = 0, report_count = report_count - ? WHERE student_id = ? AND university = ?",
                             (rem_to_deduct, current_student, current_uni))
-                        conn.commit()
-                        conn.close()
-                        time.sleep(3.0)
-                        st.rerun()
-                        if st.button("🔥 點我立刻抽獎", type="primary", use_container_width=True):
-                            lucky_draw_dialog()
-                        st.markdown("---")
-                        st.markdown("### 📊 我的交易與物資清單")
-                        conn = sqlite3.connect(DB_NAME)
-                        my_selling = pd.read_sql_query(
-                            "SELECT id, name, price FROM products WHERE seller_id = ? AND status = '上架中'", conn,
-                            params=(current_student,))
-                        my_sales = pd.read_sql_query(
-                            "SELECT name, price, status, final_trade_info FROM products WHERE seller_id = ? AND (status = 'Ref售出' OR status = '已售出')",
-                            conn, params=(current_student,))
-                        my_buys = pd.read_sql_query(
-                            "SELECT name, price, university, final_trade_info FROM products WHERE buyer_id = ?", conn,
-                            params=(current_student,))
-                        my_vouchers = pd.read_sql_query(
-                            "SELECT gift_name, code, timestamp, status FROM vouchers WHERE student_id = ?", conn,
-                            params=(current_student,))
-                        conn.close()
+                    conn.commit()
+                    conn.close()
+                    time.sleep(3.0)
+                    st.rerun()
 
-                        with st.expander(f"🏪 我正在賣的商品 ({len(my_selling)})"):
-                            if
-                        my_selling.empty: st.caption("目前沒有在售物品。")
-                        else:
-                        for _, r in my_selling.iterrows():
-                            col_pname, col_pbtn = st.columns([2, 1])
-                        with col_pname:
-                            st.markdown(
-                                f"**{r['name']}**<br><small style='color:green;'>售價: ${r['price']:.0f}</small>",
-                                unsafe_allow_html=True)
-                        with col_pbtn:
-                            if
-                        st.button("🛑 下架", key=f"del_{r['id']}", use_container_width=True, type="secondary"):
-                        conn = sqlite3.connect(DB_NAME)
-                        conn.execute("UPDATE products SET status = '已下架' WHERE id = ?", (r['id'],))
-                        conn.commit()
-                        conn.close()
-                        st.toast(f"✅ 「{r['name']}」已成功移除！")
-                        time.sleep(0.5)
-                        st.rerun()
-                        with st.expander(f"🤝 我已售出的商品 ({len(my_sales)})"):
-                            if
-                        my_sales.empty: st.caption("目前尚無售出物資紀錄。")
-                        else:
-                        for _, r in my_sales.iterrows():
-                            st.markdown(f"""                    
+
+            if st.button("🔥 點我立刻抽獎", type="primary", use_container_width=True):
+                lucky_draw_dialog()
+        st.markdown("---")
+        st.markdown("### 📊 我的交易與物資清單")
+        conn = sqlite3.connect(DB_NAME)
+        my_selling = pd.read_sql_query("SELECT id, name, price FROM products WHERE seller_id = ? AND status = '上架中'",
+                                       conn, params=(current_student,))
+        my_sales = pd.read_sql_query(
+            "SELECT name, price, status, final_trade_info FROM products WHERE seller_id = ? AND (status = 'Ref售出' OR status = '已售出')",
+            conn, params=(current_student,))
+        my_buys = pd.read_sql_query("SELECT name, price, university, final_trade_info FROM products WHERE buyer_id = ?",
+                                    conn, params=(current_student,))
+        my_vouchers = pd.read_sql_query("SELECT gift_name, code, timestamp, status FROM vouchers WHERE student_id = ?",
+                                        conn, params=(current_student,))
+        conn.close()
+
+        with st.expander(f"🏪 我正在賣的商品 ({len(my_selling)})"):
+            if my_selling.empty:
+                st.caption("目前沒有在售物品。")
+            else:
+                for _, r in my_selling.iterrows():
+                    col_pname, col_pbtn = st.columns([2, 1])
+                    with col_pname:
+                        st.markdown(f"**{r['name']}**<br><small style='color:green;'>售價: ${r['price']:.0f}</small>",
+                                    unsafe_allow_html=True)
+                    with col_pbtn:
+                        if st.button("🛑 下架", key=f"del_{r['id']}", use_container_width=True, type="secondary"):
+                            conn = sqlite3.connect(DB_NAME)
+                            conn.execute("UPDATE products SET status = '已下架' WHERE id = ?", (r['id'],))
+                            conn.commit()
+                            conn.close()
+                            st.toast(f"✅ 「{r['name']}」已成功移除！")
+                            time.sleep(0.5)
+                            st.rerun()
+        with st.expander(f"🤝 我已售出的商品 ({len(my_sales)})"):
+            if my_sales.empty:
+                st.caption("目前尚無售出物資紀錄。")
+            else:
+                for _, r in my_sales.iterrows():
+                    st.markdown(f"""                    
                         <div class="record-box">                        
                             <b>{r['name']}</b> <span style="color:green;">[{r['status']}]</span><br>                        
                             金額：${r['price']:.0f}<br>                        
                             🤝 交易與寄送資料：{r['final_trade_info']}                    
                         </div>                    """, unsafe_allow_html=True)
-                        with st.expander(f"📦 我買進的商品 ({len(my_buys)})"):
-                            if
-                        my_buys.empty: st.caption("目前尚無購買物資紀錄。")
-                        else:
-                        for _, r in my_buys.iterrows():
-                            st.markdown(f"""                    
+        with st.expander(f"📦 我買進的商品 ({len(my_buys)})"):
+            if my_buys.empty:
+                st.caption("目前尚無購買物資紀錄。")
+            else:
+                for _, r in my_buys.iterrows():
+                    st.markdown(f"""                    
                         <div class="record-box" style="background-color:#eef9ff;">                        
                             <b>{r['name']}</b><br>                        
                             金額：${r['price']:.0f} | 來源：{r['university']}<br>                        
                             🤝 配送方式：{r['final_trade_info']}                    
                         </div>                    """, unsafe_allow_html=True)
-                        with st.expander(f"🎁 我兌換的福利商品 ({len(my_vouchers)})"):
-                            if
-                        my_vouchers.empty: st.caption("目前尚無點心兌換紀錄。")
-                        else:
-                        for _, r in my_vouchers.iterrows():
-                            color_status = "#868e96" if r['status'] == "已使用" else "#e64980"
-                        st.markdown(f"""                    
+        with st.expander(f"🎁 我兌換的福利商品 ({len(my_vouchers)})"):
+            if my_vouchers.empty:
+                st.caption("目前尚無點心兌換紀錄。")
+            else:
+                for _, r in my_vouchers.iterrows():
+                    color_status = "#868e96" if r['status'] == "已使用" else "#e64980"
+                    st.markdown(f"""                    
                         <div class="record-box" style="background-color:#fff5f5; border-left: 3px solid #ff6b6b;">                        
                             <b>{r['gift_name']}</b> <small>[{r['status']}]</small><br>                        
                             <span style="color:{color_status}; font-family:monospace; font-weight:bold; font-size:14px;">序號：{r['code']}</span><br>                        
                             <small style="color:#868e96;">時間：{r['timestamp']}</small>                    
                         </div>                    """, unsafe_allow_html=True)
-                        st.markdown("---")
-                        if st.button("🚪 登出市集", type="secondary", use_container_width=True):
-                            st.session_state.logged_in = False
-                        st.rerun()
+        st.markdown("---")
+        if st.button("🚪 登出市集", type="secondary", use_container_width=True):
+            st.session_state.logged_in = False
+            st.rerun()
 
-                        st.markdown('<div class="main-title">🛍 全國大學生智慧市集</div>', unsafe_allow_html=True)
-                        st.write("---")
-                        row1_c1, row1_c2, row1_c3, row1_c4, row1_c5 = st.columns([1, 1, 1, 1, 1])
-                        with row1_c1:
-                            if
-                        st.button("探索二手市集", use_container_width=True): st.session_state.current_menu = "探索二手市集"
-                        with row1_c2:
-                            if
-                        st.button("智慧物資上架", use_container_width=True): st.session_state.current_menu = "智慧物資上架"
-                        with row1_c3:
-                            if
-                        st.button("綠幣集點福利", use_container_width=True): st.session_state.current_menu = "綠幣集點福利"
-                        with row1_c4:
-                            if
-                        st.button("失物招領中心", use_container_width=True): st.session_state.current_menu = "失物招領中心"
-                        with row1_c5:
-                            if
-                        st.button("🎁 盲盒專區", use_container_width=True): st.session_state.current_menu = "盲盒專區"
-                        st.write("---")
+    st.markdown('<div class="main-title">🛍 全國大學生智慧市集</div>', unsafe_allow_html=True)
+    st.write("---")
+    row1_c1, row1_c2, row1_c3, row1_c4, row1_c5 = st.columns([1, 1, 1, 1, 1])
+    with row1_c1:
+        if st.button("探索二手市集", use_container_width=True): st.session_state.current_menu = "探索二手市集"
+    with row1_c2:
+        if st.button("智慧物資上架", use_container_width=True): st.session_state.current_menu = "智慧物資上架"
+    with row1_c3:
+        if st.button("綠幣集點福利", use_container_width=True): st.session_state.current_menu = "綠幣集點福利"
+    with row1_c4:
+        if st.button("失物招領中心", use_container_width=True): st.session_state.current_menu = "失物招領中心"
+    with row1_c5:
+        if st.button("🎁 盲盒專區", use_container_width=True): st.session_state.current_menu = "盲盒專區"
+    st.write("---")
 
-                        # ------------------------------------------
-                        # 功能 1: 探索二手市集 (方案 B：官方真實數據防錯對接機制)
-                        # ------------------------------------------
-                        if st.session_state.current_menu == "探索二手市集":
-                            st.subheader("🪐 全國二手物資流通池")
-                        f1, f2 = st.columns(2)
-                        with f1:
-                            search_cat = st.selectbox("📦 物品分類項目", PRODUCT_CATEGORIES)
-                        with f2:
-                            search_dept = st.selectbox("🎓 適用科系篩選", ["全部科系"] + YUNTECH_ALL_DEPTS)
-                        conn = sqlite3.connect(DB_NAME)
-                        query = "SELECT id, image_base64, name, price, category, university, department, description, shipping_method, shipping_link, seller_id FROM products WHERE is_blindbox = 0 AND status = '上架中'"
-                        params = []
-                        if search_cat != "全部類型":
-                            query += " AND category = ?"
-                        params.append(search_cat)
-                        if search_dept != "全部科系":
-                            query += " AND department = ?"
-                        params.append(search_dept)
-                        df = pd.read_sql_query(query, conn, params=params)
-                        conn.close() \
- \
-                        @ st.dialog("🔍 商品詳情與下單")
-
-                def show_product_details_dialog(prod_data):
+    # ------------------------------------------
+    # 功能 1: 探索二手市集 (方案 B：官方真實數據防錯對接機制)
+    # ------------------------------------------
+    if st.session_state.current_menu == "探索二手市集":
+        st.subheader("🪐 全國二手物資流通池")
+        f1, f2 = st.columns(2)
+        with f1:
+            search_cat = st.selectbox("📦 物品分類項目", PRODUCT_CATEGORIES)
+        with f2:
+            search_dept = st.selectbox("🎓 適用科系篩選", ["全部科系"] + YUNTECH_ALL_DEPTS)
+        conn = sqlite3.connect(DB_NAME)
+        query = "SELECT id, image_base64, name, price, category, university, department, description, shipping_method, shipping_link, seller_id FROM products WHERE is_blindbox = 0 AND status = '上架中'"
+        params = []
+        if search_cat != "全部類型":
+            query += " AND category = ?"
+            params.append(search_cat)
+        if search_dept != "全部科系":
+            query += " AND department = ?"
+            params.append(search_dept)
+        df = pd.read_sql_query(query, conn, params=params)
+        conn.close()
 
 
+        @st.dialog("🔍 商品詳情與下單")
+        def show_product_details_dialog(prod_data):
             st.write(f"### {prod_data['name']}")
             if prod_data['image_base64']:
                 st.image(prod_data['image_base64'], use_container_width=True)
@@ -858,6 +847,7 @@ else:
                     time.sleep(4.0)
                     st.rerun()
 
+
         if df.empty:
             st.info("🪐 目前此分類或科系暫無同學上架二手物品。")
         else:
@@ -889,132 +879,132 @@ else:
     # 功能 2: 智慧物資上架
     # ------------------------------------------
     elif st.session_state.current_menu == "智慧物資上架":
-    st.subheader("📤 二手智慧物資快速上架")
-    with st.form("upload_form", clear_on_submit=True):
-        p_name = st.text_input("物品名稱 *", placeholder="請輸入物品標題")
-        p_price = st.number_input("預售金額 ($) *", min_value=0, max_value=999999, value=100)
-        p_cat = st.selectbox("物資分類 *", PRODUCT_CATEGORIES[1:])
-        p_dept = st.selectbox("適用指定科系 (利於精準分流) *", YUNTECH_ALL_DEPTS)
-        p_ship = st.selectbox("原定物流/配送方式 *", ["校園面交", "四大超商取貨", "提供 賣貨便/好賣+ 外部下單連結"])
-        p_link = st.text_input("外部物流賣場連結 (選填)", placeholder="如選擇外部平台下單，請在此處貼上連結")
-        p_desc = st.text_area("物品狀況描述 *", placeholder="請描述新舊程度、有無瑕疵等資料")
-        p_img = st.file_uploader("上傳商品真實照片 (選填)", type=["png", "jpg", "jpeg"])
+        st.subheader("📤 二手智慧物資快速上架")
+        with st.form("upload_form", clear_on_submit=True):
+            p_name = st.text_input("物品名稱 *", placeholder="請輸入物品標題")
+            p_price = st.number_input("預售金額 ($) *", min_value=0, max_value=999999, value=100)
+            p_cat = st.selectbox("物資分類 *", PRODUCT_CATEGORIES[1:])
+            p_dept = st.selectbox("適用指定科系 (利於精準分流) *", YUNTECH_ALL_DEPTS)
+            p_ship = st.selectbox("原定物流/配送方式 *", ["校園面交", "四大超商取貨", "提供 賣貨便/好賣+ 外部下單連結"])
+            p_link = st.text_input("外部物流賣場連結 (選填)", placeholder="如選擇外部平台下單，請在此處貼上連結")
+            p_desc = st.text_area("物品狀況描述 *", placeholder="請描述新舊程度、有無瑕疵等資料")
+            p_img = st.file_uploader("上傳商品真實照片 (選填)", type=["png", "jpg", "jpeg"])
 
-        if st.form_submit_button("🚀 發布二手商品上架"):
-            if not p_name or not p_desc:
-                st.error("⚠️ 請完整填寫名稱與描述欄位。")
-            else:
-                img_base64 = ""
-                if p_img:
-                    img_bytes = p_img.read()
-                    img_base64 = "data:image/png;base64," + base64.b64encode(img_bytes).decode()
-                conn = sqlite3.connect(DB_NAME)
-                conn.execute(
-                    "INSERT INTO products (name, price, category, university, department, description, shipping_method, shipping_link, seller_id, image_base64) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    (p_name, p_price, p_cat, current_uni, p_dept, p_desc, p_ship, p_link.strip(), current_student,
-                     img_base64))
-                conn.commit()
-                conn.close()
-                st.success("🎉 東西成功上架到全國流通池！綠幣 +20 🪙")
-                modify_coins(current_student, current_uni, 20)
-                time.sleep(0.5)
-                st.rerun()
+            if st.form_submit_button("🚀 發布二手商品上架"):
+                if not p_name or not p_desc:
+                    st.error("⚠️ 請完整填寫名稱與描述欄位。")
+                else:
+                    img_base64 = ""
+                    if p_img:
+                        img_bytes = p_img.read()
+                        img_base64 = "data:image/png;base64," + base64.b64encode(img_bytes).decode()
+                    conn = sqlite3.connect(DB_NAME)
+                    conn.execute(
+                        "INSERT INTO products (name, price, category, university, department, description, shipping_method, shipping_link, seller_id, image_base64) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (p_name, p_price, p_cat, current_uni, p_dept, p_desc, p_ship, p_link.strip(), current_student,
+                         img_base64))
+                    conn.commit()
+                    conn.close()
+                    st.success("🎉 東西成功上架到全國流通池！綠幣 +20 🪙")
+                    modify_coins(current_student, current_uni, 20)
+                    time.sleep(0.5)
+                    st.rerun()
 
-# ------------------------------------------
-# 功能 3: 綠幣集點福利
-# ------------------------------------------
-elif st.session_state.current_menu == "綠幣集點福利":
-st.subheader("🪙 綠能校園集點福利社")
-st.info("透過二手物品買賣、通報遺失物等減碳行為可獲得綠幣，並在下方兌換實體獎勵。")
+    # ------------------------------------------
+    # 功能 3: 綠幣集點福利
+    # ------------------------------------------
+    elif st.session_state.current_menu == "綠幣集點福利":
+        st.subheader("🪙 綠能校園集點福利社")
+        st.info("透過二手物品買賣、通報遺失物等減碳行為可獲得綠幣，並在下方兌換實體獎勵。")
 
-gifts_data = [
-    {"name": "超商 35 元微波點心折價券", "cost": 100,
-     "img": "https://images.unsplash.com/photo-1551024601-bec78aea704b?auto=format&fit=crop&w=400&q=80"},
-    {"name": "學辦特調冰美式咖啡一杯", "cost": 150,
-     "img": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80"},
-    {"name": "期末限定高分歐趴糖一袋", "cost": 80,
-     "img": "https://images.unsplash.com/photo-1581798459219-318e76aecc7b?auto=format&fit=crop&w=400&q=80"}
-]
+        gifts_data = [
+            {"name": "超商 35 元微波點心折價券", "cost": 100,
+             "img": "https://images.unsplash.com/photo-1551024601-bec78aea704b?auto=format&fit=crop&w=400&q=80"},
+            {"name": "學辦特調冰美式咖啡一杯", "cost": 150,
+             "img": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80"},
+            {"name": "期末限定高分歐趴糖一袋", "cost": 80,
+             "img": "https://images.unsplash.com/photo-1581798459219-318e76aecc7b?auto=format&fit=crop&w=400&q=80"}
+        ]
 
-col_g = st.columns(3)
-for idx, g in enumerate(gifts_data):
-    with col_g[idx]:
-        st.markdown(f"""                
+        col_g = st.columns(3)
+        for idx, g in enumerate(gifts_data):
+            with col_g[idx]:
+                st.markdown(f"""                
                     <div class="gift-grid-card">                        
                         <img src="{g['img']}" class="gift-img">                        
                         <div class="gift-body">                            
                             <h5 style="margin:0 0 8px 0;">{g['name']}</h5>                            
                             <p style="color:#e8590c; font-weight:bold; margin:0 0 12px 0;">所需金額：{g['cost']} 🪙</p>                        
                         </div>                """, unsafe_allow_html=True)
-        if st.button(f"立即兌換 ({g['cost']} 🪙)", key=f"gift_{idx}", use_container_width=True):
-            if user_coins < g['cost']:
-                st.error("❌ 您的綠幣餘額不足！多參與物資流通可賺取點數。")
+                if st.button(f"立即兌換 ({g['cost']} 🪙)", key=f"gift_{idx}", use_container_width=True):
+                    if user_coins < g['cost']:
+                        st.error("❌ 您的綠幣餘額不足！多參與物資流通可賺取點數。")
+                    else:
+                        modify_coins(current_student, current_uni, -g['cost'])
+                        v_code = f"CAMPUS-{random.randint(100000, 999999)}"
+                        conn = sqlite3.connect(DB_NAME)
+                        conn.execute(
+                            "INSERT INTO vouchers (student_id, gift_name, code, timestamp, status) VALUES (?, ?, ?, ?, '未使用')",
+                            (current_student, g['name'], v_code, "2026-06-02"))
+                        conn.commit()
+                        conn.close()
+                        st.success(f"🎉 兌換成功！序號【{v_code}】已保存至您的名片清單中。")
+                        time.sleep(1.0)
+                        st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+    # ------------------------------------------
+    # 功能 4: 失物招領中心
+    # ------------------------------------------
+    elif st.session_state.current_menu == "失物招領中心":
+        st.subheader("🔍 校園失物尋找與互助招領中心")
+        tab_l1, tab_l2 = st.tabs(["📋 目前全校公告清單", "📢 我撿到東西要發布公告"])
+
+        with tab_l1:
+            conn = sqlite3.connect(DB_NAME)
+            ldf = pd.read_sql_query(
+                "SELECT item_name, place, contact_location, description, finder_id FROM lost_found WHERE university = ? AND status='招領中'",
+                conn, params=(current_uni,))
+            conn.close()
+            if ldf.empty:
+                st.caption("✨ 目前校園內風平浪靜，沒有任何失物招領公告。")
             else:
-                modify_coins(current_student, current_uni, -g['cost'])
-                v_code = f"CAMPUS-{random.randint(100000, 999999)}"
-                conn = sqlite3.connect(DB_NAME)
-                conn.execute(
-                    "INSERT INTO vouchers (student_id, gift_name, code, timestamp, status) VALUES (?, ?, ?, ?, '未使用')",
-                    (current_student, g['name'], v_code, "2026-06-02"))
-                conn.commit()
-                conn.close()
-                st.success(f"🎉 兌換成功！序號【{v_code}】已保存至您的名片清單中。")
-                time.sleep(1.0)
-                st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# ------------------------------------------
-# 功能 4: 失物招領中心
-# ------------------------------------------
-elif st.session_state.current_menu == "失物招領中心":
-st.subheader("🔍 校園失物尋找與互助招領中心")
-tab_l1, tab_l2 = st.tabs(["📋 目前全校公告清單", "📢 我撿到東西要發布公告"])
-
-with tab_l1:
-    conn = sqlite3.connect(DB_NAME)
-    ldf = pd.read_sql_query(
-        "SELECT item_name, place, contact_location, description, finder_id FROM lost_found WHERE university = ? AND status='招領中'",
-        conn, params=(current_uni,))
-    conn.close()
-    if ldf.empty:
-        st.caption("✨ 目前校園內風平浪靜，沒有任何失物招領公告。")
-    else:
-        for _, r in ldf.iterrows():
-            st.markdown(f"""                    
+                for _, r in ldf.iterrows():
+                    st.markdown(f"""                    
                         <div class="lost-card">                        
                             <h4 style="margin:0 0 6px 0; color:#d9480f;">🚨 拾獲失物：{r['item_name']}</h4>                        
                             <p style="margin:0 0 4px 0; font-size:13px;"><b>拾獲地點：</b>{r['place']}</p>                        
                             <p style="margin:0 0 4px 0; font-size:13px;"><b>暫存/聯繫位置：</b>{r['contact_location']}</p>                        
                             <p style="margin:0; font-size:13px; color:#495057;"><b>拾獲人描述：</b>{r['description']}</p>                    
                         </div>                    """, unsafe_allow_html=True)
-with tab_l2:
-    with st.form("lost_form"):
-        l_name = st.text_input("撿到的物品名稱 *", placeholder="如：黑色長夾、AirPods第三代")
-        l_place = st.text_input("在哪裡撿到的 *", placeholder="如：工程一館三樓 102 教室")
-        l_contact = st.text_input("此物現在放在哪裡 / 如何聯繫您取回 *",
-                                  placeholder="如：交給系辦助教、學務處生輔組、或者聯絡我 LINE")
-        l_desc = st.text_area("物品特徵額外補充", placeholder="如：外殼有貼貼紙、內有少許零錢等")
-        if st.form_submit_button("📢 送出公告並計入社群活躍度"):
-            if not l_name or not l_place or not l_contact:
-                st.error("⚠️ 請完整填寫前三項必填欄位。")
-            else:
-                conn = sqlite3.connect(DB_NAME)
-                conn.execute(
-                    "INSERT INTO lost_found (region, university, item_name, place, contact_location, description, finder_id, image_base64) VALUES (?,?,?,?,?,?,?,?)",
-                    ("台灣", current_uni, l_name, l_place, l_contact, l_desc, current_student, ""))
-                conn.commit()
-                conn.close()
-                increment_mission_counter(current_student, current_uni, "report_count")
-                st.success("🎉 成功發布公告！此善舉已計入活躍滿額抽獎進度。")
-                time.sleep(0.5)
-                st.rerun()
+        with tab_l2:
+            with st.form("lost_form"):
+                l_name = st.text_input("撿到的物品名稱 *", placeholder="如：黑色長夾、AirPods第三代")
+                l_place = st.text_input("在哪裡撿到的 *", placeholder="如：工程一館三樓 102 教室")
+                l_contact = st.text_input("此物現在放在哪裡 / 如何聯繫您取回 *",
+                                          placeholder="如：交給系辦助教、學務處生輔組、或者聯絡我 LINE")
+                l_desc = st.text_area("物品特徵額外補充", placeholder="如：外殼有貼貼紙、內有少許零錢等")
+                if st.form_submit_button("📢 送出公告並計入社群活躍度"):
+                    if not l_name or not l_place or not l_contact:
+                        st.error("⚠️ 請完整填寫前三項必填欄位。")
+                    else:
+                        conn = sqlite3.connect(DB_NAME)
+                        conn.execute(
+                            "INSERT INTO lost_found (region, university, item_name, place, contact_location, description, finder_id, image_base64) VALUES (?,?,?,?,?,?,?,?)",
+                            ("台灣", current_uni, l_name, l_place, l_contact, l_desc, current_student, ""))
+                        conn.commit()
+                        conn.close()
+                        increment_mission_counter(current_student, current_uni, "report_count")
+                        st.success("🎉 成功發布公告！此善舉已計入活躍滿額抽獎進度。")
+                        time.sleep(0.5)
+                        st.rerun()
 
-                # ------------------------------------------
-# 功能 5: 盲盒專區 ($150 / 次)
-# ------------------------------------------
-elif st.session_state.current_menu == "盲盒專區":
-prizes = ["神秘高級大專生福袋", "星巴克 150元電子即享券", "超商免運通行證", "1TB 高速行動硬碟"]
-blind_box_html = f"""        
+                        # ------------------------------------------
+    # 功能 5: 盲盒專區 ($150 / 次)
+    # ------------------------------------------
+    elif st.session_state.current_menu == "盲盒專區":
+        prizes = ["神秘高級大專生福袋", "星巴克 150元電子即享券", "超商免運通行證", "1TB 高速行動硬碟"]
+        blind_box_html = f"""        
         <html>        
         <body style="background:#f8f9fa; display:flex; justify-content:center; align-items:center;">            
             <div style="background:#111; color:#fff; padding:40px; border-radius:20px; text-align:center; width:300px;">                
@@ -1025,4 +1015,4 @@ blind_box_html = f"""
         </body>        
         </html>        
         """
-components.html(blind_box_html, height=300)
+        components.html(blind_box_html, height=300)
