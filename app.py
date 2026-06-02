@@ -211,14 +211,12 @@ PRODUCT_CATEGORIES = ["全部類型", "書籍", "3C配件", "生活雜物", "服
 
 # 🎁 盲盒專區獎品池（混搭驚喜：包含大獎與小確幸獎項）
 INTERNAL_BLINDBOX_POOL = [
-    # 🌟 高級/等值大獎
     {"name": "【全新】威秀影城全台灣通用電影交換券 🎬", "tag": "豪華大獎"},
     {"name": "【星巴克】$165 星巴克隨行飲料電子即享券 ☕", "tag": "精選好禮"},
     {"name": "【小米】Xiaomi 22.5W 行動電源 10000 ⚡", "tag": "實用3C"},
     {"name": "【全新】Logitech 羅技 B170 無線滑鼠 🖱️", "tag": "辦公必備"},
     {"name": "【生活好物】純白極簡超大容量不鏽鋼保溫冰霸杯 🥤", "tag": "精選好禮"},
     {"name": "【麥當勞】超值全餐豪飽雙人電子兌換券 🍔", "tag": "雙人飽餐"},
-    # 🍬 趣味平價小獎（增加盲盒隨機落差趣味性）
     {"name": "【全家】大杯特濃美式咖啡 兌換券 ☕", "tag": "小確幸"},
     {"name": "【7-11】茶葉蛋2顆 + 所長豆干 雙組合點心券 🥚", "tag": "小確幸"},
     {"name": "【義美】經典黑巧克力霜淇淋 兌換券 🍦", "tag": "小確幸"},
@@ -285,7 +283,6 @@ if 'student_id' not in st.session_state: st.session_state.student_id = ""
 if 'user_name' not in st.session_state: st.session_state.user_name = ""
 if 'user_uni' not in st.session_state: st.session_state.user_uni = ""
 if 'current_menu' not in st.session_state: st.session_state.current_menu = "探索二手市集"
-# 用於儲存盲盒卡號的動態文字快取
 if 'formatted_cc' not in st.session_state: st.session_state.formatted_cc = ""
 
 
@@ -394,7 +391,40 @@ if not st.session_state.logged_in:
                     st.error("在該校中此學號已被註冊過。")
 
     elif mode == "❓ 忘記密碼":
-        st.info("忘記密碼功能請洽各校系統管理員。")
+        st.subheader("🔒 自助安全密碼重設")
+        st.write("請輸入您註冊時填寫的學號、就讀學校與電子郵件進行身份驗證：")
+
+        forgot_type = st.selectbox("請選擇就讀學校體系", CAMPUS_LABELS, key="forgot_type")
+        forgot_uni = st.selectbox("請選擇就讀大學", CAMPUS_TYPE_MAP[forgot_type], key="forgot_uni")
+        forgot_sid = st.text_input("學號", placeholder="請輸入原註冊學號")
+        forgot_email = st.text_input("學校聯絡電子郵件 (Email)", placeholder="請輸入原註冊 Email")
+
+        # 先驗證資訊是否正確
+        conn = sqlite3.connect(DB_NAME)
+        user_check = conn.execute("SELECT name FROM users WHERE student_id = ? AND university = ? AND email = ?",
+                                  (forgot_sid, forgot_uni, forgot_email)).fetchone()
+        conn.close()
+
+        if user_check:
+            st.success(f"✅ 身份驗證通過！ 找到 {mask_user_name(user_check[0])} 同學的帳號。")
+            new_password = st.text_input("🔑 請輸入新密碼", type="password", placeholder="請輸入您想變更的新密碼")
+            confirm_password = st.text_input("🔁 再次確認新密碼", type="password", placeholder="請再次輸入新密碼")
+
+            if st.button("💾 確定修改密碼", type="primary", use_container_width=True):
+                if not new_password:
+                    st.error("新密碼不能為空！")
+                elif new_password != confirm_password:
+                    st.error("❌ 兩次輸入的密碼不一致，請重新檢查！")
+                else:
+                    conn = sqlite3.connect(DB_NAME)
+                    conn.execute("UPDATE users SET password = ? WHERE student_id = ? AND university = ?",
+                                 (new_password, forgot_sid, forgot_uni))
+                    conn.commit()
+                    conn.close()
+                    st.success("🎉 密碼修改成功！請切換到「🔑 同學登入」頁面進行登入。")
+        else:
+            if forgot_sid or forgot_email:
+                st.error("❌ 查無對應資料。學號、學校或電子郵件輸入有誤，請仔細檢查。")
 
 # ==========================================
 # 4. 主功能區
@@ -491,7 +521,7 @@ else:
         my_buys = pd.read_sql_query("SELECT name, price, university, final_trade_info FROM products WHERE buyer_id = ?",
                                     conn, params=(current_student,))
 
-        # 區分已使用與未使用優惠券
+        # 分流讀取已使用與未使用優惠券
         unused_vouchers = pd.read_sql_query(
             "SELECT gift_name, code, timestamp FROM vouchers WHERE student_id = ? AND status = '未使用'", conn,
             params=(current_student,))
@@ -545,33 +575,33 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
 
-        with st.expander(f"🎁 我的優惠券明細 ({len(unused_vouchers) + len(used_vouchers)})"):
-            st.markdown("🎟️ **未使用優惠券（含盲盒中獎、點數換購）**")
+        # 🟢 【新需求修正 1】：將未使用與已使用優惠券完全分拆為兩個獨立的摺疊面板
+        with st.expander(f"🎟️ 未使用優惠券 ({len(unused_vouchers)})", expanded=True):
             if unused_vouchers.empty:
                 st.caption("暫無未使用的優惠券。")
             else:
                 for _, r in unused_vouchers.iterrows():
                     st.markdown(f"""
                     <div class="record-box" style="background-color:#fff5f5; border-left: 3px solid #ff6b6b;">
-                        <b>{r['gift_name']}</b> <small style='color:#e64980; font-weight:bold;'>[未使用]</small><br>
+                        <b>{r['gift_name']}</b><br>
                         <span style="color:#e64980; font-family:monospace; font-weight:bold; font-size:14px;">序號/兌換憑證：{r['code']}</span><br>
                         <small style="color:#868e96;">獲得時間：{r['timestamp']}</small>
                     </div>
                     """, unsafe_allow_html=True)
 
-            st.markdown("---")
-            st.markdown("⌛ **已使用/已核銷優惠券**")
+        with st.expander(f"⌛ 已使用/核銷紀錄 ({len(used_vouchers)})", expanded=False):
             if used_vouchers.empty:
                 st.caption("暫無已核銷的優惠券紀錄。")
             else:
                 for _, r in used_vouchers.iterrows():
                     st.markdown(f"""
                     <div class="record-box" style="background-color:#f1f3f5; border-left: 3px solid #868e96;">
-                        <span style='color:#868e96; text-decoration: line-through;'><b>{r['gift_name']}</b></span> <small style='color:#868e96;'>[已使用]</small><br>
+                        <span style='color:#868e96; text-decoration: line-through;'><b>{r['gift_name']}</b></span><br>
                         <span style="color:#868e96; font-family:monospace; font-size:13px;">序號：{r['code']}</span><br>
-                        <small style="color:#868e96;">時間：{r['timestamp']}</small>
+                        <small style="color:#868e96;">使用時間：{r['timestamp']}</small>
                     </div>
                     """, unsafe_allow_html=True)
+
         st.markdown("---")
         if st.button("🚪 登出市集", type="secondary", use_container_width=True):
             st.session_state.logged_in = False
@@ -634,14 +664,11 @@ else:
             st.info(f"💡 **商品描述：**\n{prod_data['description']}")
             st.markdown("---")
 
-            # 解析賣家支援的多個配送管道
             allowed_methods = [m.strip() for m in prod_data['shipping_method'].split(',') if m.strip()]
             if not allowed_methods:
                 allowed_methods = ["預約校園面交"]
 
             buyer_ship_choice = st.selectbox("請選擇配送管道 (僅顯示賣家支援的選項)", allowed_methods)
-
-            # 🎫 序號輸入欄位
             input_voucher_code = st.text_input("🎫 優惠券 / 免運通關券序號（選填）", placeholder="例如：DRAW-XXXXXX")
 
             base_shipping_fee = 60
@@ -712,10 +739,8 @@ else:
                     f'<a href="{EMAP_URLS[chain_choice]}" target="_blank" class="emap-btn">🌐 開啟官方【{chain_choice}】電子地圖查詢</a>',
                     unsafe_allow_html=True)
 
-                # 使用者貼上官方格式即可
                 raw_store_input = st.text_input("📋 請在此貼上官方複製的門市名稱與編號資料",
                                                 placeholder="例如：台大門市 115234")
-
                 b_name = st.text_input("收件人真實姓名")
                 b_phone = st.text_input("收件人手機號碼")
 
@@ -942,7 +967,7 @@ else:
                         st.rerun()
 
     # ------------------------------------------
-    # 功能 5: 盲盒專區 (內建驚喜商品 + 信用卡號自動格式化)
+    # 功能 5: 盲盒專區
     # ------------------------------------------
     elif st.session_state.current_menu == "盲盒專區":
         st.subheader("🎁 幸運官方盲盒抽獎池 ($150 / 次)")
@@ -951,7 +976,6 @@ else:
 
         st.markdown("#### 🛍️ 官方盲盒獎項部分精彩預覽：")
         col_preview = st.columns(4)
-        # 展示部分混搭獎品
         preview_items = [INTERNAL_BLINDBOX_POOL[0], INTERNAL_BLINDBOX_POOL[2], INTERNAL_BLINDBOX_POOL[6],
                          INTERNAL_BLINDBOX_POOL[7]]
         for idx, item in enumerate(preview_items):
@@ -968,24 +992,17 @@ else:
         st.info("💳 本模組已接軌線上正式安全金流（信用卡即時扣款面版）：")
 
         with st.expander("📝 點此展開信用卡付款資料填寫", expanded=True):
-            # 💳 核心邏輯：信用卡號動態每 4 碼自動加空格
             raw_cc = st.text_input("💳 信用卡卡號", value=st.session_state.formatted_cc,
                                    placeholder="4000 1234 5678 9010", key="cc_input")
-
-            # 只保留純數字來重新排版
             digits_only = re.sub(r"\D", "", raw_cc)[:16]
-            # 每 4 個數字加一個空格
             formatted = " ".join([digits_only[i:i + 4] for i in range(0, len(digits_only), 4)])
 
-            # 如果目前格式與原輸入不合，進行即時同步刷新
             if formatted != raw_cc:
                 st.session_state.formatted_cc = formatted
                 st.rerun()
 
             cc_date = st.text_input("📅 有效期限", placeholder="MM/YY", max_chars=5)
             cc_cvv = st.text_input("🔒 安全碼", type="password", placeholder="123", max_chars=3)
-
-            # 驗證時需扣掉空格，純數字長度達到 16 碼即可
             pay_valid = len(digits_only) == 16 and len(cc_date) >= 4 and len(cc_cvv) >= 3
 
         if pay_valid:
@@ -993,11 +1010,9 @@ else:
                 with st.spinner("正在進行銀行 3D 安全金流驗證，請勿關閉網頁... 💳"):
                     time.sleep(2.0)
 
-                # 隨機抽取一件官方獎項（包含高價值大獎與低價值小確幸）
                 won_gift = random.choice(INTERNAL_BLINDBOX_POOL)
                 v_code = f"BOX-{random.randint(100000, 999999)}"
 
-                # 直接插入到優惠券資料庫中
                 conn = sqlite3.connect(DB_NAME)
                 conn.execute(
                     "INSERT INTO vouchers (student_id, gift_name, code, timestamp, status) VALUES (?, ?, ?, '2026-06-03', '未使用')",
@@ -1005,17 +1020,14 @@ else:
                 conn.commit()
                 conn.close()
 
-                # 增加任務活躍度計數
                 increment_mission_counter(current_student, current_uni, "buy_count")
-
-                # 付款成功後重設卡號輸入框
                 st.session_state.formatted_cc = ""
 
                 st.balloons()
                 st.success(f"✨ 刷卡扣款成功！恭喜您在盲盒中抽中：")
                 st.markdown(f"### 🎉 {won_gift['name']}")
                 st.markdown(f"🎟️ **您的專屬領獎序號/憑證碼為：** `{v_code}`")
-                st.info("💡 領獎憑證已為您自動存入左側側邊欄的「我的優惠券明細」 ➡️ 「未使用優惠券」中，您可隨時查看核銷！")
+                st.info("💡 領獎憑證已為您自動存入左側側邊欄的「未使用優惠券」中，您可隨時查看核銷！")
                 time.sleep(3.5)
                 st.rerun()
         else:
