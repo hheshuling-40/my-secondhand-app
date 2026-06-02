@@ -63,7 +63,7 @@ PRODUCT_CATEGORIES = ["全部類型", "書籍", "3C配件", "生活雜物", "服
 def init_db():
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute('''CREATE TABLE IF NOT EXISTS users (
-            student_id TEXT, name TEXT, password TEXT, university TEXT, line_id TEXT DEFAULT '未填寫', 
+            student_id TEXT, name TEXT, password TEXT, university TEXT, email TEXT DEFAULT '未填寫', 
             green_coins INTEGER DEFAULT 100, buy_count INTEGER DEFAULT 0, report_count INTEGER DEFAULT 0, PRIMARY KEY (student_id, university))''')
         conn.execute('''CREATE TABLE IF NOT EXISTS products (
             id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, price REAL, category TEXT, university TEXT, 
@@ -73,8 +73,9 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT, student_id TEXT, gift_name TEXT, code TEXT, status TEXT DEFAULT '未使用', timestamp TEXT)''')
         conn.execute('''CREATE TABLE IF NOT EXISTS lost_found (
             id INTEGER PRIMARY KEY AUTOINCREMENT, university TEXT, item_name TEXT, place TEXT, contact_location TEXT, finder_id TEXT, status TEXT DEFAULT '招領中')''')
+        # 預留一組測試帳號（包含信箱）
         conn.execute(
-            "INSERT OR IGNORE INTO users VALUES ('A112', '王小明', '1234', '國立雲林科技大學', 'line_cool', 500, 3, 1)")
+            "INSERT OR IGNORE INTO users VALUES ('A112', '王小明', '1234', '國立雲林科技大學', 'student@yuntech.edu.tw', 500, 3, 1)")
 
 
 init_db()
@@ -92,7 +93,7 @@ def execute_db(query, params=()):
 
 
 # ==========================================
-# 4. 登入 / 註冊區 (含找回密碼)
+# 4. 登入 / 註冊區 (含郵件密碼找回)
 # ==========================================
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 
@@ -122,29 +123,43 @@ if not st.session_state.logged_in:
         with st.form("reg_form"):
             reg_name = st.text_input("您的稱呼 *")
             reg_sid = st.text_input("學號 *")
-            reg_line = st.text_input("LINE ID *")
+            reg_email = st.text_input("聯絡 Email 郵件 *", placeholder="example@school.edu.tw")
             reg_pass = st.text_input("設定密碼 *", type="password")
             if st.form_submit_button("提交註冊"):
                 try:
                     execute_db(
-                        "INSERT INTO users (student_id, name, password, university, line_id) VALUES (?, ?, ?, ?, ?)",
-                        (reg_sid, reg_name, reg_pass, log_uni, reg_line))
+                        "INSERT INTO users (student_id, name, password, university, email) VALUES (?, ?, ?, ?, ?)",
+                        (reg_sid, reg_name, reg_pass, log_uni, reg_email))
                     st.success("🎉 註冊成功！請切換到登入頁面。")
                 except:
                     st.error("該學校此學號已被註冊！")
 
     elif mode == "🔍 忘記密碼":
-        st.caption("🔒 安全驗證：請輸入正確的註冊學號與持有的 LINE ID 以核對資料庫。")
+        st.caption("🔒 安全密碼重設：請輸入註冊時綁定的學號與 Email，系統將模擬發送重設郵件。")
         with st.form("forgot_form"):
-            f_sid = st.text_input("請輸入學號")
-            f_line = st.text_input("請輸入註冊時綁定的 LINE ID")
-            if st.form_submit_button("驗證身分並找回密碼"):
-                res = get_db_data("SELECT password, name FROM users WHERE student_id=? AND line_id=? AND university=?",
-                                  (f_sid, f_line, log_uni))
+            f_sid = st.text_input("請輸入註冊學號")
+            f_email = st.text_input("請輸入註冊時綁定的 Email 郵件")
+            if st.form_submit_button("🛡️ 發送重設密碼信"):
+                res = get_db_data("SELECT password, name FROM users WHERE student_id=? AND email=? AND university=?",
+                                  (f_sid, f_email, log_uni))
                 if not res.empty:
-                    st.success(f"🔑 驗證成功！{res['name'][0]} 同學，您的密碼為：【 {res['password'][0]} 】")
+                    # 🚀 報告亮點：模擬雲端外接郵件伺服器 (SMTP) 的交互動畫
+                    progress_text = "正在初始化安全郵件伺服器..."
+                    my_bar = st.progress(0, text=progress_text)
+
+                    for percent_complete in range(100):
+                        time.sleep(0.01)
+                        if percent_complete == 30:
+                            progress_text = "🔒 正在與資料庫進行安全加密對照..."
+                        elif percent_complete == 70:
+                            progress_text = "📡 正在加密發送密碼信件至目標信箱..."
+                        my_bar.progress(percent_complete + 1, text=progress_text)
+                    my_bar.empty()
+
+                    st.success(f"📧 郵件發送成功！重設密碼信已成功寄送至 `{f_email}`。")
+                    st.info(f"💡 【系統沙盒提示】{res['name'][0]} 同學，您信件中的原密碼為：**`{res['password'][0]}`**")
                 else:
-                    st.error("❌ 驗證失敗：學號、LINE ID 或學校資訊不吻合！")
+                    st.error("❌ 驗證失敗：學號、Email 郵件或就讀學校資訊與資料庫不吻合！")
 
 # ==========================================
 # 5. 主系統主控台 (登入後)
@@ -239,7 +254,7 @@ else:
             if buyer_ship_choice == "四大超商取貨":
                 chain = st.selectbox("選擇超商", list(EMAP_URLS.keys()))
                 st.markdown(
-                    f'<a href="{EMAP_URLS[chain]}" target="_blank" class="emap-btn">🌐 開氣【{chain}】真實地圖查店號</a>',
+                    f'<a href="{EMAP_URLS[chain]}" target="_blank" class="emap-btn">🌐 開啟【{chain}】真實地圖查店號</a>',
                     unsafe_allow_html=True)
                 raw_store = st.text_input("貼上門市名稱與店號", placeholder="例如：台大門市 115234")
 
@@ -338,7 +353,7 @@ else:
                     execute_db("UPDATE lost_found SET status='已認領' WHERE id=?", (r['id'],))
                     st.success("🎉 公告已撤除。");
                     time.sleep(0.5);
-                    r.rerun()
+                    st.rerun()
         with t2:
             with st.form("lost_form", clear_on_submit=True):
                 l_name = st.text_input("物品名稱")
