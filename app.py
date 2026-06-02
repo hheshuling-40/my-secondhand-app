@@ -153,6 +153,32 @@ st.markdown("""
         margin-bottom: 6px;
     }
 
+    /* 費用結帳明細面板 */
+    .checkout-box {
+        background-color: #f1f3f5;
+        padding: 15px;
+        border-radius: 12px;
+        border: 1px solid #dee2e6;
+        margin: 15px 0;
+    }
+    .checkout-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+        font-size: 14px;
+        color: #495057;
+    }
+    .checkout-total {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px dashed #ced4da;
+        font-size: 18px;
+        font-weight: bold;
+        color: #212529;
+    }
+
     @media (max-width: 768px) {
         .product-card {
             flex-direction: column !important;
@@ -624,7 +650,7 @@ else:
     st.write("---")
 
     # ------------------------------------------
-    # 功能 1: 探索二手市集 (新增序號輸入與核銷)
+    # 功能 1: 探索二手市集 (新增運費明細計算功能)
     # ------------------------------------------
     if st.session_state.current_menu == "探索二手市集":
         st.subheader("🪐 全國二手物資流通池")
@@ -668,11 +694,61 @@ else:
             buyer_ship_choice = st.selectbox("請選擇配送管道",
                                              ["四大超商取貨", "使用賣家提供的 賣貨便/好賣+ 網址", "預約校園面交"])
 
-            # 🎫 新增：序號輸入欄位
+            # 🎫 序號輸入欄位
             input_voucher_code = st.text_input("🎫 優惠券 / 免運通關券序號（選填）", placeholder="例如：DRAW-XXXXXX")
+
+            # 💡 核心優化：即時基礎運費邏輯判斷
+            base_shipping_fee = 60  # 超商取貨預設 60 元
+            if buyer_ship_choice == "預約校園面交":
+                base_shipping_fee = 0
+            elif buyer_ship_choice == "使用賣家提供的 賣貨便/好賣+ 網址":
+                base_shipping_fee = 0  # 外部連結由對方平台計算
+
+            # 驗證輸入的序號是否能免運
+            is_free_shipping = False
+            voucher_name_applied = ""
+            voucher_db_id = None
+
+            if input_voucher_code.strip() != "":
+                conn = sqlite3.connect(DB_NAME)
+                check_v = conn.execute(
+                    "SELECT id, gift_name FROM vouchers WHERE student_id = ? AND code = ? AND status = '未使用'",
+                    (current_student, input_voucher_code.strip())).fetchone()
+                conn.close()
+                if check_v:
+                    voucher_db_id = check_v[0]
+                    voucher_name_applied = check_v[1]
+                    # 如果抽到的獎品名稱含有「免運」，則將運費歸零
+                    if "免運" in voucher_name_applied:
+                        is_free_shipping = True
+
+            # 計算最終運費與應付總額
+            final_shipping_fee = 0 if is_free_shipping else base_shipping_fee
+            total_cost = prod_data['price'] + final_shipping_fee
+
+            # 💡 核心優化：渲染費用明細面板給買家確認
+            st.markdown("#### 💵 結帳金額明細確認")
+            if buyer_ship_choice == "使用賣家提供的 賣貨便/好賣+ 網址":
+                st.markdown(f"""
+                <div class="checkout-box">
+                    <div class="checkout-row"><span>商品本體金額</span><span>${prod_data['price']:.0f} 元</span></div>
+                    <div class="checkout-row"><span>物流寄送費用</span><span style="color:#868e96;">以賣家外部連結為準</span></div>
+                    <div class="checkout-total"><span>預計應付總額</span><span>${prod_data['price']:.0f} 元 + 運費</span></div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                voucher_discount_text = f"<span style='color:#e64980;'>-${base_shipping_fee} (已套用 {voucher_name_applied})</span>" if is_free_shipping else f"${base_shipping_fee} 元"
+                st.markdown(f"""
+                <div class="checkout-box">
+                    <div class="checkout-row"><span>商品本體金額</span><span>${prod_data['price']:.0f} 元</span></div>
+                    <div class="checkout-row"><span>物流寄送費用</span><span>{voucher_discount_text}</span></div>
+                    <div class="checkout-total"><span>最終應付總額</span><span style="color:#06C755;">${total_cost:.0f} 元</span></div>
+                </div>
+                """, unsafe_allow_html=True)
 
             final_memo_output = ""
 
+            # 填寫對應的表單資料
             if buyer_ship_choice == "使用賣家提供的 賣貨便/好賣+ 網址":
                 if prod_data['shipping_link'] and prod_data['shipping_link'].strip() != "":
                     st.markdown(f"""
@@ -720,28 +796,20 @@ else:
                 elif final_memo_output == "":
                     st.error("請填妥配送或面交資訊再送出！")
                 else:
-                    voucher_valid = True
-                    voucher_info = ""
-
-                    # 驗證序號邏輯
-                    if input_voucher_code.strip() != "":
-                        conn = sqlite3.connect(DB_NAME)
-                        check_v = conn.execute(
-                            "SELECT id, gift_name FROM vouchers WHERE student_id = ? AND code = ? AND status = '未使用'",
-                            (current_student, input_voucher_code.strip())).fetchone()
-                        if check_v:
-                            voucher_info = f" (已核銷套用：{check_v[1]})"
-                            # 將該優惠券更新為已使用
-                            conn.execute("UPDATE vouchers SET status = '已使用' WHERE id = ?", (check_v[0],))
-                            conn.commit()
-                        else:
-                            voucher_valid = False
-                        conn.close()
-
-                    if not voucher_valid:
+                    # 如果使用者輸入了序號，但資料庫沒查到
+                    if input_voucher_code.strip() != "" and voucher_db_id is None:
                         st.error("❌ 輸入的序號無效、已使用過，或不屬於您的帳號！請重新檢查。")
                     else:
-                        final_memo_output += voucher_info
+                        # 序號有效，扣除核銷
+                        if voucher_db_id is not None:
+                            conn = sqlite3.connect(DB_NAME)
+                            conn.execute("UPDATE vouchers SET status = '已使用' WHERE id = ?", (voucher_db_id,))
+                            conn.commit()
+                            conn.close()
+                            final_memo_output += f" (已核銷套用：{voucher_name_applied})"
+                        else:
+                            final_memo_output += f" (無套用優惠券，應付總計: ${total_cost:.0f}元)"
+
                         conn = sqlite3.connect(DB_NAME)
                         conn.execute(
                             "UPDATE products SET status = '已售出', buyer_id = ?, final_trade_info = ? WHERE id = ?",
@@ -750,9 +818,8 @@ else:
                         conn.close()
 
                         increment_mission_counter(current_student, current_uni, "buy_count")
-
-                        st.success("🎉 訂單發送成功！交易已計入您的活躍滿額抽獎。")
-                        time.sleep(1.2)
+                        st.success(f"🎉 訂單發送成功！最終結算金額為 ${total_cost:.0f} 元，交易已計入抽獎進度。")
+                        time.sleep(1.5)
                         st.rerun()
 
 
