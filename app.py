@@ -13,7 +13,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="Campus Market | 全國大學生智慧市集", page_icon="🛍️", layout="wide")
 
 # ==========================================
-# 🎨 RWD 響應式視覺優化 UI (正式上線版)
+# 🎨 RWD 響應式視覺優化 UI (正式上線隱私強化版)
 # ==========================================
 st.markdown("""<style>
     html, body, [data-testid="stAppViewContainer"] {
@@ -189,7 +189,7 @@ st.markdown("""<style>
 # ==========================================
 # 0. 地理大數據與基礎設定
 # ==========================================
-DB_NAME = 'streamlit_campus_market_v116_perfect_taiwan_fixed.db'
+DB_NAME = 'streamlit_campus_market_v116_privacy_fixed.db'
 CAMPUS_TYPE_MAP = {
     "公立學校": [
         "國立臺灣大學", "國立政治大學", "國立臺灣師範大學", "國立清華大學", "國立陽明交通大學",
@@ -203,11 +203,11 @@ CAMPUS_TYPE_MAP = {
 }
 CAMPUS_LABELS = list(CAMPUS_TYPE_MAP.keys())
 
-# 攤平所有學校清單，方便失物招領使用
+# 攤平所有學校清單
 ALL_UNIVERSITIES = CAMPUS_TYPE_MAP["公立學校"] + CAMPUS_TYPE_MAP["私立學校"]
 TAIWAN_REGIONS = ["北部地區", "中部地區", "南部地區", "東部地區", "離島地區"]
 
-# 100% 真實的四大超商地圖入口
+# 真實的四大超商地圖入口
 EMAP_URLS = {
     "7-11 統一超商": "https://emap.pcsc.com.tw/",
     "全家便利商店": "https://www.family.com.tw/Marketing/zh/Map",
@@ -916,41 +916,50 @@ else:
                     st.button("🔒 點數不足", key=f"rew_dis_{i}", disabled=True, use_container_width=True)
 
     # ------------------------------------------
-    # 功能 4: 失物招領中心（修正版：還原全國學校及區域篩選）
+    # 功能 4: 失物招領中心（隱私防護連線版：預設僅限本校，跨校需主動搜尋）
     # ------------------------------------------
     elif st.session_state.current_menu == "失物招領中心":
-        st.subheader("🔍 全國校園失物尋找與招領通報系統")
-        tab_list, tab_report = st.tabs(["📋 全國失物招領登記簿", "📣 拾獲失物通報登記入口"])
+        st.subheader("🔍 校園失物尋找與招領通報系統")
+        tab_list, tab_report = st.tabs(["📋 校園失物招領登記簿", "📣 拾獲失物通報登記入口"])
 
         with tab_list:
-            st.markdown("##### 🔍 跨校聯網篩選條件")
-            filter_c1, filter_c2 = st.columns(2)
-            with filter_c1:
-                sel_region = st.selectbox("🌍 選擇目標區域", ["全部區域"] + TAIWAN_REGIONS)
-            with filter_c2:
-                # 預設自動定位到同學就讀的學校
-                default_idx = ALL_UNIVERSITIES.index(current_uni) if current_uni in ALL_UNIVERSITIES else 0
-                sel_uni = st.selectbox("🏫 選擇特定大學", ["全部學校"] + ALL_UNIVERSITIES, index=default_idx + 1)
+            st.markdown(f"#### 🏫 當前定位學校：**{current_uni}**")
+            st.caption("🔒 隱私安全保護：系統預設僅鎖定並顯示您就讀學校的失物資訊。")
 
-            # 從資料庫撈取資料，並動態組裝過濾 SQL
+            # 隱私安全過濾：提供主動切換功能，但不會直接開放全台大池給所有人看
+            search_mode = st.radio("請選擇瀏覽範圍：", [f"只看本校 ({current_uni})", "🔍 跨校/特定學校獨立查詢"],
+                                   horizontal=True)
+
+            target_uni = current_uni
+            target_region = "全部區域"
+
+            if search_mode == "🔍 跨校/特定學校獨立查詢":
+                st.info("💡 跨校尋物提示：若您在外校參與活動或比賽不慎遺失物品，請在下方主動選取該特定學校。")
+                filter_c1, filter_c2 = st.columns(2)
+                with filter_c1:
+                    target_region = st.selectbox("🌍 選擇目標區域", ["全部區域"] + TAIWAN_REGIONS)
+                with filter_c2:
+                    # 這裡必須由使用者手動主動指定特定大學，防範跨校大通鋪被惡意窺探
+                    target_uni = st.selectbox("🏫 欲查詢的特定大學", ALL_UNIVERSITIES, index=ALL_UNIVERSITIES.index(
+                        current_uni) if current_uni in ALL_UNIVERSITIES else 0)
+
+            # 從資料庫撈取資料，嚴格根據上述隱私安全邏輯進行精準篩選
             conn = sqlite3.connect(DB_NAME)
-            query = "SELECT id, region, university, item_name, place, contact_location, description, image_base64 FROM lost_found WHERE status='招領中'"
-            params = []
+            query = "SELECT id, region, university, item_name, place, contact_location, description, image_base64 FROM lost_found WHERE status='招領中' AND university = ?"
+            params = [target_uni]
 
-            if sel_region != "全部區域":
+            if target_region != "全部區域":
                 query += " AND region = ?"
-                params.append(sel_region)
-            if sel_uni != "全部學校":
-                query += " AND university = ?"
-                params.append(sel_uni)
+                params.append(target_region)
 
             lost_df = pd.read_sql_query(query, conn, params=params)
             conn.close()
 
             st.write("---")
             if lost_df.empty:
-                st.info("💡 該篩選條件下，目前沒有未領取的失物登記紀錄。")
+                st.info(f"💡 目前在【{target_uni}】沒有任何未領取的失物登記紀錄。")
             else:
+                st.warning(f"⚠️ 注意：以下僅顯示屬於【{target_uni}】內部的失物登記，請勿將非本人或不相關的校內資訊外傳。")
                 for _, r in lost_df.iterrows():
                     st.markdown(f"""
                     <div class="lost-card-container">
@@ -974,26 +983,26 @@ else:
                         st.rerun()
 
         with tab_report:
-            st.markdown("##### 📣 請填寫拾獲物資詳細資訊（將同步至全國連線資料庫）")
+            st.markdown("##### 📣 請填寫拾獲物資詳細資訊（通報資料將受校園隔離與隱私保護）")
             with st.form("lost_form", clear_on_submit=True):
                 rep_c1, rep_c2 = st.columns(2)
                 with rep_c1:
                     l_region = st.selectbox("🌍 拾獲區域 *", TAIWAN_REGIONS)
                 with rep_c2:
-                    # 預設也是先選使用者自己的學校，但也允許自由切換全台學校
+                    # 預設為目前登入者學校，防止同學誤填，但也允許更改（例如幫鄰近外校撿到時）
                     user_default_idx = ALL_UNIVERSITIES.index(current_uni) if current_uni in ALL_UNIVERSITIES else 0
                     l_uni = st.selectbox("🏫 拾獲學校 *", ALL_UNIVERSITIES, index=user_default_idx)
 
-                l_name = st.text_input("拾獲物品名稱 *", placeholder="例如：黑色長夾、AirPods Pro 2")
-                l_place = st.text_input("具體拾獲地點 *", placeholder="例如：大禮堂3樓女廁外長椅、綜合大樓B1學餐")
-                l_contact = st.text_input("目前暫時寄放/保管地點 *",
-                                          placeholder="例如：生輔組、2樓系辦公室（附自己的聯絡電話）")
-                l_desc = st.text_area("外觀備註/特徵描述", placeholder="例如：有史迪奇吊飾，內無現金有悠遊卡一張")
+                l_name = st.text_input("拾獲物品名稱 *", placeholder="例如：晶片悠遊卡、藍色保溫瓶")
+                l_place = st.text_input("具體拾獲地點 *", placeholder="例如：管二館 101 教室課桌抽屜")
+                l_contact = st.text_input("目前暫時寄放/保管地點 *", placeholder="例如：大門警衛室、學務處生輔組")
+                l_desc = st.text_area("外觀備註/特徵描述（⚠️ 請勿透露過多個資，留待失主核對）",
+                                      placeholder="例如：卡片背面有特定貼紙，內無填寫姓名。")
 
                 # 📸 照片上傳欄位
                 l_img = st.file_uploader("📸 上傳失物真實照片 (選填，能大幅提升找回機率！)", type=["jpg", "png", "jpeg"])
 
-                if st.form_submit_button("發布跨校招領通報 📢"):
+                if st.form_submit_button("發布招領通報 📢"):
                     if not l_name or not l_place or not l_contact:
                         st.error("請完整填寫通報必填欄位！")
                     else:
@@ -1010,7 +1019,7 @@ else:
                         conn.close()
 
                         increment_mission_counter(current_student, current_uni, "report_count")
-                        st.success("🎉 成功發布全國公告！感謝您的熱心協助，綠幣進度已累計！")
+                        st.success(f"🎉 成功發布通報！此公告僅會對【{l_uni}】的同學以及主動搜尋該校的用戶可見。")
                         time.sleep(1.0)
                         st.rerun()
 
