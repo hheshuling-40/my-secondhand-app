@@ -311,7 +311,7 @@ if 'user_name' not in st.session_state: st.session_state.user_name = ""
 if 'user_uni' not in st.session_state: st.session_state.user_uni = ""
 if 'current_menu' not in st.session_state: st.session_state.current_menu = "探索二手市集"
 
-# 💳 信用卡有效期限動態快取狀態（確保輸入不卡頓）
+# 💳 建立信用卡有效期限專用的動態監聽快取狀態
 if 'expiry_input' not in st.session_state: st.session_state.expiry_input = ""
 
 
@@ -572,7 +572,7 @@ else:
 
         with st.expander(f"📦 我買進的商品 ({len(my_buys)})"):
             if my_buys.empty:
-                st.caption("目前尚無購買物資紀錄. ")
+                st.caption("目前尚無購買物資紀錄。")
             else:
                 for _, r in my_buys.iterrows():
                     st.markdown(f"""
@@ -620,7 +620,7 @@ else:
     st.write("---")
 
     # ------------------------------------------
-    # 功能 1: 探索二手市集 (含：自動加斜線有效期限輸入框 ＆ 超商地圖防錯)
+    # 功能 1: 探索二手市集
     # ------------------------------------------
     if st.session_state.current_menu == "探索二手市集":
         st.subheader("🪐 全國二手物資流通池")
@@ -676,7 +676,7 @@ else:
                 st.text_input("卡片號碼", placeholder="XXXX XXXX XXXX XXXX", max_chars=19)
 
             with col_card2:
-                # 🚀 方案：Python 動態正則正向過濾 (不卡頓且完美支援 RWD)
+                # 讀取快取中的輸入內容
                 raw_expiry = st.text_input(
                     "有效期限 (MM/YY) *",
                     value=st.session_state.expiry_input,
@@ -685,21 +685,21 @@ else:
                     key="expiry_widget"
                 )
 
-                # 核心防錯：過濾掉非數字的字元，重新計算
+                # 核心防錯：過濾掉非數字的字元
                 digits_only = re.sub(r'\D', '', raw_expiry)
 
-                # 當輸入滿兩個數字，且目前字串內還沒有斜線時，自動組裝加上 "/"
+                # 關鍵邏輯：當輸入滿兩個數字，且目前快取還沒有斜線時，自動組裝加上 "/"
                 if len(digits_only) >= 2:
                     formatted_expiry = f"{digits_only[:2]}/{digits_only[2:4]}"
                 else:
                     formatted_expiry = digits_only
 
-                # 如果格式化後的結果與使用者輸入的不同，立刻同步更新並刷新
+                # 如果格式化後的結果與目前組件的值不同，立刻同步更新快取並重整畫面
                 if formatted_expiry != raw_expiry:
                     st.session_state.expiry_input = formatted_expiry
                     st.rerun()
 
-                # 驗證有效期限是否填寫完整 (長度必須等於 5，例如 12/28)
+                # 驗證格式長度是否合規 (例如 12/28 長度必須等於 5)
                 is_expiry_valid = len(formatted_expiry) == 5
                 if formatted_expiry and not is_expiry_valid:
                     st.caption("<small style='color:red;'>格式需為 4 位數字，如 12/28</small>", unsafe_allow_html=True)
@@ -785,7 +785,7 @@ else:
                                                 placeholder="例如：台大門市 或 115234")
                 user_store_final = ""
 
-                # 🚀 AI 物流大師防錯格式過濾器
+                # AI 物流大師防錯格式過濾器
                 if raw_store_input.strip():
                     clean_input = raw_store_input.strip()
                     store_code_match = re.search(r'\d{5,6}', clean_input)
@@ -821,7 +821,7 @@ else:
 
             st.write("---")
 
-            # 🚀 熔斷阻擋機制：如果超商物流不合法，或是「有效期限未完整填寫(長度不對)」，按鈕維持灰色鎖死
+            # 🚀 熔斷阻擋機制：除了超商物流必須合法外，有效期限也必須完整輸入（長度=5），才會啟用下單按鈕
             button_disabled = not (form_valid and is_expiry_valid)
 
             if st.button("🛒 確認付費並送出訂單", use_container_width=True, type="primary", disabled=button_disabled):
@@ -839,7 +839,7 @@ else:
 
                 st.success("🎉 下單成功！系統已安全儲存此筆訂單！此善舉已計入活躍滿額抽獎進度。")
 
-                # 重設快取狀態
+                # 重設有效期限快取狀態
                 st.session_state.expiry_input = ""
                 time.sleep(1.0)
                 st.rerun()
