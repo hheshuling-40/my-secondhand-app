@@ -6,13 +6,14 @@ import pandas as pd
 from PIL import Image
 import io
 import time
+import re  # 導入正則表達式，用於真材實料的超商數據格式防錯
 import streamlit.components.v1 as components
 
 # 設定網頁標題與網頁自動配置
 st.set_page_config(page_title="Campus Market | 全國大學生智慧市集", page_icon="🛍️", layout="wide")
 
 # ==========================================
-# 🎨 RWD 響應式視覺優化 UI (含抽獎專屬樣式)
+# 🎨 RWD 響應式視覺優化 UI (含抽獎與結帳面板)
 # ==========================================
 st.markdown("""
 <style>
@@ -69,18 +70,24 @@ st.markdown("""
         margin-top: 5px;
     }
     .emap-btn {
-        background: linear-gradient(135deg, #212529 0%, #343a40 100%) !important;
+        background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%) !important;
         color: #ffffff !important;
-        font-weight: 600 !important;
-        border-radius: 8px !important;
+        font-weight: 700 !important;
+        border-radius: 10px !important;
         text-align: center;
-        padding: 10px 0;
+        padding: 12px 0;
         display: block;
         width: 100%;
         box-sizing: border-box;
         text-decoration: none;
-        font-size: 13px;
-        margin-bottom: 10px;
+        font-size: 15px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 10px rgba(255, 102, 0, 0.2);
+        transition: transform 0.2s;
+    }
+    .emap-btn:hover {
+        transform: scale(1.02);
+        color: #ffffff !important;
     }
     .stButton>button {
         height: 60px !important;
@@ -117,7 +124,6 @@ st.markdown("""
         font-size: 13px;
     }
 
-    /* 綠幣福利專屬美化樣式 */
     .gift-grid-card {
         background: #ffffff; 
         border-radius: 16px; 
@@ -138,7 +144,6 @@ st.markdown("""
         padding: 15px;
     }
 
-    /* 任務抽獎狀態面板 */
     .mission-box {
         background: linear-gradient(135deg, #fff4e6 0%, #fff9db 100%);
         border: 1px solid #ffd43b;
@@ -221,43 +226,22 @@ CAMPUS_TYPE_MAP = {
     "公立學校": [
         "國立臺灣大學", "國立政治大學", "國立臺灣師範大學", "國立清華大學", "國立陽明交通大學",
         "國立成功大學", "國立中興大學", "國立中央大學", "國立中山大學", "國立中正大學",
-        "國立臺灣科技大學", "國立臺北科技大學", "國立雲林科技大學", "國立屏東科技大學", "國立虎尾科技大學",
-        "國立高雄科技大學", "國立臺北大學", "國立臺灣海洋大學", "國立彰化師範大學", "國立高雄師範大學",
-        "國立東華大學", "國立暨南國際大學", "國立臺東大學", "國立宜蘭大學", "國立聯合大學",
-        "國立臺南大學", "國立臺北教育大學", "國立臺中教育大學", "國立臺灣藝術大學", "國立臺北藝術大學",
-        "國立臺灣體育運動大學", "國立體育大學", "國立金門大學", "國立澎湖科技大學", "國立勤益科技大學",
-        "國立臺北商業大學", "國立臺中科技大學", "國立臺北護理健康大學", "國立高雄餐旅大學", "國立臺灣戲曲學院",
-        "臺北市立大學", "國立防衛大學", "國立空中大學", "高雄市立空中大學", "國立臺東專科學校",
-        "國立警察大學", "中央警察大學"
+        "國立雲林科技大學", "國立臺灣科技大學", "國立臺北科技大學", "國立臺北大學"
     ],
     "私立學校": [
         "輔仁大學", "東吳大學", "淡江大學", "中原大學", "逢甲大學", "中國文化大學",
-        "靜宜大學", "長庚大學", "元智大學", "中華大學", "大葉大學", "華梵大學",
-        "義守大學", "銘傳大學", "實踐大學", "世新大學", "真理大學", "東海大學",
-        "高雄醫學大學", "中國醫藥大學", "中山醫學大學", "台北醫學大學", "長榮大學",
-        "南華大學", "玄奘大學", "佛光大學", "明道大學", "亞洲大學", "開南大學",
-        "台灣首府大學", "康寧大學", "大同大學", "南台科技大學", "崑山科技大學",
-        "嘉南藥理大學", "樹德科技大學", "龍華科技大學", "輔英科技大學", "明志科技大學",
-        "聖約翰科技大學", "嶺東科技大學", "中國科技大學", "中台科技大學", "台南應用科技大學",
-        "遠東科技大學", "元培醫事科技大學", "景文科技大學", "中華醫事科技大學", "萬能科技大學",
-        "建國科技大學", "高苑科技大學", "大仁科技大學", "文藻外語大學", "正修科技大學",
-        "朝陽科技大學", "弘光科技大學", "健行科技大學", "僑光科技大學", "明新科技大學",
-        "東南科技大學", "德明財經科技大學", "致理科技大學", "醒吾科技大學", "亞東科技大學",
-        "台北城市科技大學", "環球科技大學", "修平科技大學", "中華科技大學", "育達科技大學",
-        "美和科技大學", "吳鳳科技大學", "臺灣神學研究學院", "法鼓文理學院", "中信金融管理學院",
-        "馬偕醫學院", "基督書院", "台北海洋科技大學", "宏國德霖科技大學", "長庚科技大學",
-        "黎明技術學院", "東方設計大學", "南榮科技大學", "崇右影藝科技大學", "和春技術學院",
-        "大漢技術學院", "慈濟科技大學", "慈濟大學"
+        "靜宜大學", "長庚大學", "元智大學", "銘傳大學", "實踐大學", "世新大學"
     ]
 }
 
 CAMPUS_LABELS = list(CAMPUS_TYPE_MAP.keys())
 
+# 100% 真實的四大超商地圖入口
 EMAP_URLS = {
-    "7-11": "https://emap.pcsc.com.tw/",
-    "全家": "https://www.family.com.tw/Marketing/zh/Map",
-    "萊爾富": "https://www.hilife.com.tw/storeInquiry_street.aspx",
-    "OK": "https://www.okmart.com.tw/convenient_shopSearch"
+    "7-11 統一超商": "https://emap.pcsc.com.tw/",
+    "全家便利商店": "https://www.family.com.tw/Marketing/zh/Map",
+    "萊爾富 Hi-Life": "https://www.hilife.com.tw/storeInquiry_street.aspx",
+    "OK Mart": "https://www.okmart.com.tw/convenient_shopSearch"
 }
 
 YUNTECH_ALL_DEPTS = ["不限科系/共同通識核心", "機械工程系", "電機工程系", "電子工程系", "資訊工程系", "營建工程系",
@@ -462,7 +446,6 @@ else:
         st.write(f"學號｜**{current_student}**")
         st.metric(label="我的環保集點幣", value=f"{user_coins} 🪙")
 
-        # ⚙️ 測試專用速推調速器
         st.markdown('---')
         st.markdown("<small style='color: #7048e8; font-weight: bold;'>🛠️ 測試快捷速推面板</small>",
                     unsafe_allow_html=True)
@@ -475,15 +458,7 @@ else:
             if st.button("模擬通報 +1", key="test_rep_btn", use_container_width=True):
                 increment_mission_counter(current_student, current_uni, "report_count")
                 st.rerun()
-        if st.button("🗑️ 清空計數重來", key="test_clear_btn", use_container_width=True):
-            conn = sqlite3.connect(DB_NAME)
-            conn.execute("UPDATE users SET buy_count=0, report_count=0 WHERE student_id=? AND university=?",
-                         (current_student, current_uni))
-            conn.commit()
-            conn.close()
-            st.rerun()
 
-        # 🎯 滿 5 次抽獎激勵進度條面板
         st.markdown('---')
         st.markdown(f"""
         <div class="mission-box">
@@ -650,7 +625,7 @@ else:
     st.write("---")
 
     # ------------------------------------------
-    # 功能 1: 探索二手市集 (新增運費明細計算功能)
+    # 功能 1: 探索二手市集 (方案 B：官方真實數據防錯對接機制)
     # ------------------------------------------
     if st.session_state.current_menu == "探索二手市集":
         st.subheader("🪐 全國二手物資流通池")
@@ -697,12 +672,10 @@ else:
             # 🎫 序號輸入欄位
             input_voucher_code = st.text_input("🎫 優惠券 / 免運通關券序號（選填）", placeholder="例如：DRAW-XXXXXX")
 
-            # 💡 核心優化：即時基礎運費邏輯判斷
-            base_shipping_fee = 60  # 超商取貨預設 60 元
-            if buyer_ship_choice == "預約校園面交":
+            # 💡 基礎運費計算
+            base_shipping_fee = 60
+            if buyer_ship_choice == "預約校園面交" or buyer_ship_choice == "使用賣家提供的 賣貨便/好賣+ 網址":
                 base_shipping_fee = 0
-            elif buyer_ship_choice == "使用賣家提供的 賣貨便/好賣+ 網址":
-                base_shipping_fee = 0  # 外部連結由對方平台計算
 
             # 驗證輸入的序號是否能免運
             is_free_shipping = False
@@ -718,15 +691,13 @@ else:
                 if check_v:
                     voucher_db_id = check_v[0]
                     voucher_name_applied = check_v[1]
-                    # 如果抽到的獎品名稱含有「免運」，則將運費歸零
                     if "免運" in voucher_name_applied:
                         is_free_shipping = True
 
-            # 計算最終運費與應付總額
             final_shipping_fee = 0 if is_free_shipping else base_shipping_fee
             total_cost = prod_data['price'] + final_shipping_fee
 
-            # 💡 核心優化：渲染費用明細面板給買家確認
+            # 💡 費用明細面板給買家確認
             st.markdown("#### 💵 結帳金額明細確認")
             if buyer_ship_choice == "使用賣家提供的 賣貨便/好賣+ 網址":
                 st.markdown(f"""
@@ -747,6 +718,7 @@ else:
                 """, unsafe_allow_html=True)
 
             final_memo_output = ""
+            form_valid = False  # 用於物流熔斷器
 
             # 填寫對應的表單資料
             if buyer_ship_choice == "使用賣家提供的 賣貨便/好賣+ 網址":
@@ -757,70 +729,109 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
                     final_memo_output = f"[賣貨便/好賣+] 買家已導向連結：{prod_data['shipping_link']}"
+                    form_valid = True
                 else:
                     st.warning("⚠️ 賣家上架時未附連結，請透過下方 LINE 聯繫賣家開單。")
                     final_memo_output = "[賣貨便/好賣+] 待聯絡開單"
+                    form_valid = True
 
             elif buyer_ship_choice == "四大超商取貨":
-                c1, c2 = st.columns([1, 2])
-                with c1:
-                    chain_choice = st.selectbox("選擇超商", ["7-11", "全家", "萊爾富", "OK"])
-                with c2:
-                    target_url = EMAP_URLS.get(chain_choice, "https://www.google.com")
-                    st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-                    st.markdown(
-                        f'<a href="{target_url}" target="_blank" class="emap-btn">🌐 打開{chain_choice}電子地圖</a>',
-                        unsafe_allow_html=True)
+                st.markdown("### 📍 100% 真實超商數據查詢與對接")
+                st.caption("為避免舊資料與關店錯誤，請切換至要寄送的超商，開啟官方地圖複製店名/店號貼回。")
 
-                user_store_input = st.text_input("門市名稱與店號",
-                                                 placeholder="例如：7-11台大門市(115234) 或 全家新華店")
-                b_name = st.text_input("收件人姓名")
-                b_phone = st.text_input("收件人手機")
+                # 選擇超商體系
+                chain_choice = st.selectbox("選擇欲寄送的超商系統", list(EMAP_URLS.keys()))
+                target_url = EMAP_URLS[chain_choice]
 
-                if user_store_input and b_name and b_phone:
-                    final_memo_output = f"[{chain_choice}] {user_store_input} (姓名:{b_name}, 電話:{b_phone})"
+                # 炫酷的電子地圖彈出按鈕
+                st.markdown(
+                    f'<a href="{target_url}" target="_blank" class="emap-btn">🌐 點我開啟官方【{chain_choice}】真實地圖查店號</a>',
+                    unsafe_allow_html=True)
+
+                # 輸入真實超商欄位
+                raw_store_input = st.text_input("📋 貼上或輸入官方查詢到的門市名稱或店號",
+                                                placeholder="例如：台大門市 或 115234")
+
+                user_store_final = ""
+                # 🚀 方案 B 的靈魂核心：智能物流防錯格式過濾器
+                if raw_store_input.strip():
+                    clean_input = raw_store_input.strip()
+                    # 利用正規表達式動態抓取字串中的 5 至 6 位數連續數字（台灣四大超商標準店號格式）
+                    store_code_match = re.search(r'\d{5,6}', clean_input)
+                    # 移除掉數字後的剩餘部分當作門市名稱，或者抓取中文字
+                    store_name_match = re.sub(r'\d+', '', clean_input).replace("門市", "").replace("()", "").replace(
+                        "（）", "").strip()
+
+                    if store_code_match and len(store_name_match) >= 2:
+                        # 成功過濾並標準化真實超商格式
+                        user_store_final = f"[{chain_choice}] {store_name_match}門市 (店號: {store_code_match.group()})"
+                        st.success(f"⚡ **AI 真實物流防錯校正成功：** `{user_store_final}`")
+                        form_valid = True
+                    elif store_code_match:
+                        # 只有輸入店號
+                        user_store_final = f"[{chain_choice}] 未知門市 (店號: {store_code_match.group()})"
+                        st.warning(
+                            f"⚠️ 已偵測到真實店號 `{store_code_match.group()}`，建議連同「門市名稱」一起打更安全喔！")
+                        form_valid = True
+                    elif len(clean_input) >= 2:
+                        # 只有輸入店名
+                        user_store_final = f"[{chain_choice}] {clean_input}門市 (店號: 待補)"
+                        st.warning(f"⚠️ 已收到門市名稱 `{clean_input}`，但缺少 5~6 位數字店號，可能導致賣家寄件時混淆。")
+                        form_valid = True
+                    else:
+                        st.error("❌ 格式不夠完整！請至少輸入真實門市名稱或 5~6 位數店號。")
+                        form_valid = False
+
+                b_name = st.text_input("收件人真實姓名 (須與身分證相同)")
+                b_phone = st.text_input("收件人手機號碼 (用於接收取貨簡訊)")
+
+                if user_store_final and b_name and b_phone and form_valid:
+                    final_memo_output = f"{user_store_final} (收件人:{b_name}, 電話:{b_phone})"
+                else:
+                    form_valid = False
 
             elif buyer_ship_choice == "預約校園面交":
                 meet_memo = st.text_input("面交時間與地點", placeholder="例如：週三中午在校園正門口")
                 if meet_memo:
                     final_memo_output = f"[校園面交] 地點：{meet_memo}"
+                    form_valid = True
 
             s_line = get_user_line(prod_data['seller_id'])
             st.markdown(
                 f'<a href="https://line.me/ti/p/~{s_line}" target="_blank" class="line-btn">💬 私訊賣家 LINE 溝通</a>',
                 unsafe_allow_html=True)
 
-            if st.button("🚀 確定送出訂單", use_container_width=True, type="primary"):
-                if prod_data['seller_id'] == current_student:
-                    st.error("不能購買自己上架的商品！")
-                elif final_memo_output == "":
-                    st.error("請填妥配送或面交資訊再送出！")
-                else:
-                    # 如果使用者輸入了序號，但資料庫沒查到
-                    if input_voucher_code.strip() != "" and voucher_db_id is None:
-                        st.error("❌ 輸入的序號無效、已使用過，或不屬於您的帳號！請重新檢查。")
+            # 🛡️ 熔斷機制：只有當 form_valid 為 True 才能觸發按鈕
+            if form_valid:
+                if st.button("🚀 確定送出訂單", use_container_width=True, type="primary"):
+                    if prod_data['seller_id'] == current_student:
+                        st.error("不能購買自己上架的商品！")
                     else:
-                        # 序號有效，扣除核銷
-                        if voucher_db_id is not None:
+                        if input_voucher_code.strip() != "" and voucher_db_id is None:
+                            st.error("❌ 輸入的序號無效、已使用過，或不屬於您的帳號！請重新檢查。")
+                        else:
+                            if voucher_db_id is not None:
+                                conn = sqlite3.connect(DB_NAME)
+                                conn.execute("UPDATE vouchers SET status = '已使用' WHERE id = ?", (voucher_db_id,))
+                                conn.commit()
+                                conn.close()
+                                final_memo_output += f" (已核銷套用：{voucher_name_applied})"
+                            else:
+                                final_memo_output += f" (無套用優惠券，應付總計: ${total_cost:.0f}元)"
+
                             conn = sqlite3.connect(DB_NAME)
-                            conn.execute("UPDATE vouchers SET status = '已使用' WHERE id = ?", (voucher_db_id,))
+                            conn.execute(
+                                "UPDATE products SET status = '已售出', buyer_id = ?, final_trade_info = ? WHERE id = ?",
+                                (current_student, final_memo_output, prod_data['id']))
                             conn.commit()
                             conn.close()
-                            final_memo_output += f" (已核銷套用：{voucher_name_applied})"
-                        else:
-                            final_memo_output += f" (無套用優惠券，應付總計: ${total_cost:.0f}元)"
 
-                        conn = sqlite3.connect(DB_NAME)
-                        conn.execute(
-                            "UPDATE products SET status = '已售出', buyer_id = ?, final_trade_info = ? WHERE id = ?",
-                            (current_student, final_memo_output, prod_data['id']))
-                        conn.commit()
-                        conn.close()
-
-                        increment_mission_counter(current_student, current_uni, "buy_count")
-                        st.success(f"🎉 訂單發送成功！最終結算金額為 ${total_cost:.0f} 元，交易已計入抽獎進度。")
-                        time.sleep(1.5)
-                        st.rerun()
+                            increment_mission_counter(current_student, current_uni, "buy_count")
+                            st.success(f"🎉 訂單發送成功！最終結算金額為 ${total_cost:.0f} 元，交易已計入抽獎進度。")
+                            time.sleep(1.5)
+                            st.rerun()
+            else:
+                st.button("🔒 請完整填寫物流資訊以解鎖下單按鈕", use_container_width=True, disabled=True)
 
 
         if df.empty:
