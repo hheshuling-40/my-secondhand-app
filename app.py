@@ -201,19 +201,18 @@ REGIONAL_UNIVERSITIES = {
     ],
     "中部地區": [
         "國立中興大學", "國立臺中科技大學", "國立勤益科技大學", "國立雲林科技大學",
-        "國立虎尾科技大學", "國立彰化師範大學", "國立暨那大學", "國立臺中教育大學",
+        "國立虎尾科技大學", "國立彰化師範大學", "國立暨南國際大學", "國立臺中教育大學",
         "逢甲大學", "東海大學", "靜宜大學", "中國醫藥大學", "中山醫學大學",
         "大葉大學", "亞洲大學", "弘光科技大學", "朝陽科技大學", "嶺東科技大學"
     ],
     "南部地區": [
         "國立成功大學", "國立中山大學", "國立中正大學", "國立高雄大學",
-        "國立高雄科技大學", "國立屏東科技大學", "國立臺南大學", "國立台南藝術大學",
-        "義守大學", "長榮大學", "南台科技大學", "崑山科技大學", "嘉南藥理大學",
+        "國立高雄科技大學", "國立屏東科技大學", "國立臺南大學", "國立臺南藝術大學",
+        "義守大學", "長榮大學", "南臺科技大學", "崑山科技大學", "嘉南藥理大學",
         "高雄醫學大學", "文藻外語大學", "正修科技大學"
     ],
     "東部地區": [
-        "國立東華大學", "國立臺灣東部大學", "國立宜蘭大學", "國立臺東大學",
-        "慈濟大學", "佛光大學"
+        "國立東華大學", "國立宜蘭大學", "國立臺東大學", "慈濟大學", "佛光大學"
     ],
     "離島地區": [
         "國立金門大學", "國立澎湖科技大學"
@@ -899,7 +898,7 @@ else:
     # ------------------------------------------
     elif st.session_state.current_menu == "綠幣集點福利":
         st.subheader("🪙 環保綠幣福利社")
-        st.info(f"💡 您的當前帳戶餘額： **{user_coins} 🪙**")
+        st.info(f"💡 您的當前帳戶餘釋： **{user_coins} 🪙**")
 
         rewards = [
             {"name": "【全家】35元微波點心即享折價券", "cost": 150,
@@ -941,7 +940,7 @@ else:
                     st.button("🔒 點數不足", key=f"rew_dis_{i}", disabled=True, use_container_width=True)
 
     # ------------------------------------------
-    # 功能 4: 失物招領中心（全區域學校精細連動優化）
+    # 功能 4: 失物招領中心（嚴格限定僅顯示本校資料，杜絕跨校流竄）
     # ------------------------------------------
     elif st.session_state.current_menu == "失物招領中心":
         st.subheader("🔍 校園失物尋找與招領通報系統")
@@ -949,27 +948,13 @@ else:
 
         with tab_list:
             st.markdown(f"#### 🏫 當前定位學校：**{current_uni}**")
-            st.caption("🔒 隱私安全保護：系統預設僅鎖定並顯示您就讀學校的失物資訊。")
+            st.caption("🔒 隱私安全保護：系統已自動為您隔離其他校區，您在此處**僅能看到自己就讀學校**的失物公告項目。")
 
-            search_mode = st.radio("請選擇瀏覽範圍：", [f"只看本校 ({current_uni})", "🔍 跨校/特定學校獨立查詢"],
-                                   horizontal=True)
-
+            # 強制將查詢目標鎖定在當前登入者學校
             target_uni = current_uni
-            target_region = "全部區域"
-
-            if search_mode == "🔍 跨校/特定學校獨立查詢":
-                st.info("💡 跨校尋物提示：若您在外校參與活動或比賽不慎遺失物品，請先選取區域再指定學校。")
-                filter_c1, filter_c2 = st.columns(2)
-                with filter_c1:
-                    target_region = st.selectbox("🌍 選擇目標區域", TAIWAN_REGIONS)
-                with filter_c2:
-                    # 依據選擇的區域，精準過濾該區域的學校，如果該區域沒資料則 fallback 回全部學校
-                    available_unis = REGIONAL_UNIVERSITIES[target_region] if REGIONAL_UNIVERSITIES[
-                        target_region] else ALL_UNIVERSITIES
-                    default_idx = available_unis.index(current_uni) if current_uni in available_unis else 0
-                    target_uni = st.selectbox("🏫 欲查詢的特定大學", available_unis, index=default_idx)
 
             conn = sqlite3.connect(DB_NAME)
+            # SQL 條件直接嚴格綁定 university = ?，徹底解決跨校顯示的問題
             query = "SELECT id, region, university, item_name, place, contact_location, description, image_base64 FROM lost_found WHERE status='招領中' AND university = ?"
             params = [target_uni]
             lost_df = pd.read_sql_query(query, conn, params=params)
@@ -977,9 +962,9 @@ else:
 
             st.write("---")
             if lost_df.empty:
-                st.info(f"💡 目前在【{target_uni}】沒有任何未領取的失物登記紀錄。")
+                st.info(f"💡 目前在【{target_uni}】本校內，沒有任何未領取的失物登記紀錄。")
             else:
-                st.warning(f"⚠️ 注意：以下僅顯示屬於【{target_uni}】內部的失物登記，請勿將非本人或不相關的校內資訊外傳。")
+                st.warning(f"⚠️ 注意：以下僅顯示屬於【{target_uni}】內部的失物登記，請勿將校內資訊外傳。")
                 for _, r in lost_df.iterrows():
                     st.markdown(f"""
                     <div class="lost-card-container">
@@ -1006,11 +991,11 @@ else:
             st.markdown("##### 📣 請填寫拾獲物資詳細資訊（通報資料將受校園隔離與隱私保護）")
 
             if "report_region" not in st.session_state:
-                st.session_state.report_region = "北部地區"
+                st.session_state.report_region = "中部地區"  # 預設改為中部地區
 
             l_region = st.selectbox("🌍 拾獲區域 *", TAIWAN_REGIONS, key="report_region_selector")
 
-            # 精準對應：不論北、中、南、東、離島，都會撈出該區所屬的公私立大學名單
+            # 不論選擇哪個區域，皆會精確渲染出 REGIONAL_UNIVERSITIES 裡最齊全的大學陣容
             filtered_unis = REGIONAL_UNIVERSITIES[l_region] if REGIONAL_UNIVERSITIES[l_region] else ALL_UNIVERSITIES
             user_default_idx = filtered_unis.index(current_uni) if current_uni in filtered_unis else 0
 
@@ -1019,7 +1004,8 @@ else:
                 l_name = st.text_input("拾獲物品名稱 *", placeholder="例如：晶片悠遊卡、藍色保溫瓶")
                 l_place = st.text_input("具體拾獲地點 *", placeholder="例如：管二館 101 教室課桌抽屜")
                 l_contact = st.text_input("目前暫時寄放/保管地點 *", placeholder="例如：大門警衛室、學務處生輔組")
-                l_desc = st.text_area("外觀備註/特徵描述（⚠️ 請勿透露過多個資，留待失主核對）", placeholder="placeholder")
+                l_desc = st.text_area("外觀備註/特徵描述（⚠️ 請勿透露過多個資，留待失主核對）",
+                                      placeholder="請輸入外觀特徵...")
 
                 l_img = st.file_uploader("📸 上傳失物真實照片 (選填)", type=["jpg", "png", "jpeg"])
 
@@ -1040,7 +1026,7 @@ else:
                         conn.close()
 
                         increment_mission_counter(current_student, current_uni, "report_count")
-                        st.success(f"🎉 成功發布通報！此公告僅會對【{l_uni}】的同學以及主動搜尋該校的用戶可見。")
+                        st.success(f"🎉 成功發布通報！此公告將會安全地歸類在【{l_uni}】的大學資料池中。")
                         time.sleep(1.0)
                         st.rerun()
 
@@ -1053,9 +1039,8 @@ else:
 
         st.markdown("#### 🛍️ 官方盲盒獎項部分精彩預覽：")
         col_preview = st.columns(4)
-        preview_items = [
-            INTERNAL_BLINBOO_POOL[0] if 'INTERNAL_BLINBOO_POOL' in globals() else INTERNAL_BLINDBOX_POOL[0],
-            INTERNAL_BLINDBOX_POOL[2], INTERNAL_BLINDBOX_POOL[6], INTERNAL_BLINDBOX_POOL[7]]
+        preview_items = [INTERNAL_BLINDBOX_POOL[0], INTERNAL_BLINDBOX_POOL[2], INTERNAL_BLINDBOX_POOL[6],
+                         INTERNAL_BLINDBOX_POOL[7]]
         for idx, item in enumerate(preview_items):
             with col_preview[idx]:
                 badge_color = "#e64980" if "大獎" in item['tag'] or "3C" in item['tag'] else "#4dabf7"
