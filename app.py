@@ -12,7 +12,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="Campus Market | 全國大學生智慧市集", page_icon="🛍️", layout="wide")
 
 # ==========================================
-# 🎨 RWD 響應式視覺優化 UI
+# 🎨 RWD 響應式視覺優化 UI (含抽獎專屬樣式)
 # ==========================================
 st.markdown("""
 <style>
@@ -117,6 +117,42 @@ st.markdown("""
         font-size: 13px;
     }
 
+    /* 綠幣福利專屬美化樣式 */
+    .gift-grid-card {
+        background: #ffffff; 
+        border-radius: 16px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03); 
+        overflow: hidden; 
+        border: 1px solid #eef2f5;
+        margin-bottom: 25px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .gift-img {
+        width: 100%;
+        height: 160px;
+        object-fit: cover;
+    }
+    .gift-body {
+        padding: 15px;
+    }
+
+    /* 任務抽獎狀態面板 */
+    .mission-box {
+        background: linear-gradient(135deg, #fff4e6 0%, #fff9db 100%);
+        border: 1px solid #ffd43b;
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 15px;
+    }
+    .mission-title {
+        font-size: 14px;
+        font-weight: bold;
+        color: #d9480f;
+        margin-bottom: 6px;
+    }
+
     @media (max-width: 768px) {
         .product-card {
             flex-direction: column !important;
@@ -204,7 +240,7 @@ PRODUCT_CATEGORIES = ["全部類型", "書籍", "3C配件", "生活雜物", "服
 
 
 # ==========================================
-# 1. 資料庫基礎建設
+# 1. 資料庫基礎建設 (動態支援新任務指標)
 # ==========================================
 def init_db():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False)
@@ -213,9 +249,21 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             student_id TEXT NOT NULL, name TEXT DEFAULT '同學', password TEXT NOT NULL, university TEXT NOT NULL, 
             line_id TEXT DEFAULT '未填寫', green_coins INTEGER DEFAULT 100, email TEXT DEFAULT '',
+            buy_count INTEGER DEFAULT 0, report_count INTEGER DEFAULT 0,
             PRIMARY KEY (student_id, university)
         )
     ''')
+
+    # 檢查並動態補上 buy_count 與 report_count 欄位（防舊資料庫報錯）
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN buy_count INTEGER DEFAULT 0")
+    except:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN report_count INTEGER DEFAULT 0")
+    except:
+        pass
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS products (
             id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, price REAL NOT NULL, category TEXT NOT NULL,
@@ -241,10 +289,10 @@ def init_db():
 
     try:
         cursor.execute("""
-            INSERT OR IGNORE INTO users (student_id, name, password, university, line_id, green_coins, email) 
-            VALUES ('A66666666', '王小明', '1234', '國立雲林科技大學', 'yuntech_cool', 150, 'a66666666@yuntech.edu.tw')
+            INSERT OR IGNORE INTO users (student_id, name, password, university, line_id, green_coins, email, buy_count, report_count) 
+            VALUES ('A66666666', '王小明', '1234', '國立雲林科技大學', 'yuntech_cool', 500, 'a66666666@yuntech.edu.tw', 3, 1)
         """)
-    except Exception as e:
+    except:
         pass
 
     conn.commit()
@@ -289,18 +337,26 @@ def get_user_line(student_id):
     return res[0] if res else "未填寫"
 
 
-def get_coins(student_id, university):
+def get_user_mission_data(student_id, university):
     conn = sqlite3.connect(DB_NAME)
-    res = conn.execute("SELECT green_coins FROM users WHERE student_id = ? AND university = ?",
+    res = conn.execute("SELECT green_coins, buy_count, report_count FROM users WHERE student_id = ? AND university = ?",
                        (student_id, university)).fetchone()
     conn.close()
-    return res[0] if res else 0
+    return res if res else (0, 0, 0)
 
 
 def modify_coins(student_id, university, amount):
     conn = sqlite3.connect(DB_NAME)
     conn.execute("UPDATE users SET green_coins = green_coins + ? WHERE student_id = ? AND university = ?",
                  (amount, student_id, university))
+    conn.commit()
+    conn.close()
+
+
+def increment_mission_counter(student_id, university, field):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute(f"UPDATE users SET {field} = {field} + 1 WHERE student_id = ? AND university = ?",
+                 (student_id, university))
     conn.commit()
     conn.close()
 
@@ -352,7 +408,7 @@ if not st.session_state.logged_in:
                 try:
                     conn = sqlite3.connect(DB_NAME)
                     conn.execute(
-                        "INSERT INTO users (student_id, name, password, university, line_id, green_coins, email) VALUES (?, ?, ?, ?, ?, 100, ?)",
+                        "INSERT INTO users (student_id, name, password, university, line_id, green_coins, email, buy_count, report_count) VALUES (?, ?, ?, ?, ?, 100, ?, 0, 0)",
                         (reg_sid, reg_name, reg_pass, reg_uni, reg_line, reg_email))
                     conn.commit()
                     conn.close()
@@ -371,12 +427,84 @@ else:
     current_uni = st.session_state.user_uni
     current_name = st.session_state.user_name
 
+    # 撈取最新狀態與任務計數
+    user_coins, buy_cnt, report_cnt = get_user_mission_data(current_student, current_uni)
+    total_actions = buy_cnt + report_cnt
+
     with st.sidebar:
         st.markdown("### 🧑‍🎓 攤主名片")
         st.markdown(f"歡迎回來，**{current_name}** 同學！👋")
         st.write(f"學校｜**{current_uni}**")
         st.write(f"學號｜**{current_student}**")
-        st.metric(label="我的環保集點幣", value=f"{get_coins(current_student, current_uni)} 🪙")
+        st.metric(label="我的環保集點幣", value=f"{user_coins} 🪙")
+
+        # 🎯 滿 5 次抽獎激勵進度條面板
+        st.markdown('---')
+        st.markdown(f"""
+        <div class="mission-box">
+            <div class="mission-title">🎁 活躍校園滿額抽獎</div>
+            <span style="font-size:12px; color:#5c5f62;">已買二手物：<b>{buy_cnt} 次</b></span><br>
+            <span style="font-size:12px; color:#5c5f62;">已回報失物：<b>{report_cnt} 次</b></span><br>
+            <div style="margin-top:8px; font-size:13px; font-weight:bold; color:#e8590c;">
+                目前進度：{total_actions % 5} / 5
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 判斷是否滿足抽獎資格 (大於0且是5的倍數，或餘數為0)
+        if total_actions > 0 and (total_actions % 5 == 0):
+            st.warning("🎉 恭喜！您已符合解鎖抽獎條件！")
+
+
+            @st.dialog("🎁 滿5次社群貢獻：校園幸運大抽獎")
+            def lucky_draw_dialog():
+                st.markdown("### 🎡 恭喜觸發限時福利抽獎")
+                st.write("系統檢測到您在 Campus Market 累計交易與招領通報已達標！點擊下方按鈕啟動轉盤：")
+
+                if st.button("🎰 開始抽獎", use_container_width=True, type="primary"):
+                    with st.spinner("轉盤瘋狂旋轉中...🌀"):
+                        time.sleep(1.5)
+
+                    prize_pool = [
+                        "50 點綠幣 🪙", "100 點綠幣 🪙", "全家 35元微波點心折價券 🍰",
+                        "學辦特調冰美式咖啡 ☕", "期末歐趴糖一包 🍬", "免運通關券 🚚"
+                    ]
+                    won_prize = random.choice(prize_pool)
+
+                    st.balloons()
+                    st.success(f"🎊 恭喜抽中：【{won_prize}】！")
+
+                    # 若抽中綠幣，直接歸戶
+                    if "50 點綠幣" in won_prize:
+                        modify_coins(current_student, current_uni, 50)
+                    elif "100 點綠幣" in won_prize:
+                        modify_coins(current_student, current_uni, 100)
+                    else:
+                        # 其他獎項寫入福利券清單
+                        v_code = f"DRAW-{random.randint(100000, 999999)}"
+                        conn = sqlite3.connect(DB_NAME)
+                        conn.execute(
+                            "INSERT INTO vouchers (student_id, gift_name, code, timestamp) VALUES (?, ?, ?, ?)",
+                            (current_student, f"【抽獎贏得】{won_prize}", v_code, "2026-06-02"))
+                        conn.commit()
+                        conn.close()
+                        st.info("💡 實體獎勵換領序號已同步保存至下方的福利商品清單中。")
+
+                    # 抽完後，為了讓使用者能重新累計，將計數器各扣除一部分或重設進度（這裡採用各減去按比例次數或由管理者定義。為求簡單，我們直接在扣除總數 5 次，保持計數滾動）
+                    conn = sqlite3.connect(DB_NAME)
+                    # 扣除累計，使其脫離 5 的倍數狀態以防重複點選
+                    conn.execute(
+                        "UPDATE users SET buy_count = 0, report_count = 0 WHERE student_id = ? AND university = ?",
+                        (current_student, current_uni))
+                    conn.commit()
+                    conn.close()
+
+                    time.sleep(3.0)
+                    st.rerun()
+
+
+            if st.button("🔥 點我立刻抽獎", type="primary", use_container_width=True):
+                lucky_draw_dialog()
 
         st.markdown("---")
         st.markdown("### 📊 我的交易與物資清單")
@@ -447,7 +575,7 @@ else:
                     <div class="record-box" style="background-color:#fff5f5; border-left: 3px solid #ff6b6b;">
                         <b>{r['gift_name']}</b><br>
                         <span style="color:#e64980; font-family:monospace; font-weight:bold; font-size:14px;">序號：{r['code']}</span><br>
-                        <small style="color:#868e96;">兌換時間：{r['timestamp']}</small>
+                        <small style="color:#868e96;">時間：{r['timestamp']}</small>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -459,7 +587,7 @@ else:
     st.markdown('<div class="main-title">🛍 全國大學生智慧市集</div>', unsafe_allow_html=True)
     st.write("---")
 
-    # 頂部導覽按鈕列 (調整比例納入第五個按鈕)
+    # 頂部導覽按鈕列
     row1_c1, row1_c2, row1_c3, row1_c4, row1_c5 = st.columns([1, 1, 1, 1, 1])
     with row1_c1:
         if st.button("探索二手市集", use_container_width=True): st.session_state.current_menu = "探索二手市集"
@@ -574,7 +702,11 @@ else:
                         (current_student, final_memo_output, prod_data['id']))
                     conn.commit()
                     conn.close()
-                    st.success("🎉 訂單發送成功！請至左側「我的交易清單」查閱。")
+
+                    # 💡 核心變動：增加購買計數
+                    increment_mission_counter(current_student, current_uni, "buy_count")
+
+                    st.success("🎉 訂單發送成功！交易已計入您的活躍滿額抽獎。")
                     time.sleep(1.2)
                     st.rerun()
 
@@ -616,8 +748,7 @@ else:
             p_name = st.text_input("物品名稱", placeholder="例如：微積分課本")
             p_price = st.number_input("欲售金額 (TWD)", min_value=0, value=100)
             p_shipping = st.selectbox("🚚 建議運送形式", ["校園面交", "7-11 賣貨便", "全家好賣+"])
-            p_link = st.text_input("🔗 第三方賣場連結（若有，買家下單時會直接彈出網址）",
-                                   placeholder="https://myship.7-11.com.tw/...")
+            p_link = st.text_input("🔗 第三方賣場連結（若有）", placeholder="https://myship.7-11.com.tw/...")
             p_desc = st.text_area("物況詳細說明")
             p_file = st.file_uploader("📸 上傳商品實體照", type=['png', 'jpg', 'jpeg'])
 
@@ -639,44 +770,72 @@ else:
                     conn.commit()
                     conn.close()
                     modify_coins(current_student, current_uni, 10)
-                    st.success("🎉 上架成功！")
+                    st.success("🎉 上架成功！已獲得 10 點綠色低碳積幣。")
                     st.rerun()
 
     # ------------------------------------------
     # 功能 3: 綠幣集點福利
     # ------------------------------------------
     elif st.session_state.current_menu == "綠幣集點福利":
-        st.subheader("🪙 環保低碳集點福利社")
-        user_coins = get_coins(current_student, current_uni)
-        st.info(f"當前可用積點： {user_coins} 🪙")
+        st.subheader("🪙 依據 `image_4a9984.png` 優化：綠幣集點福利社")
+        st.info(f"💡 綠色低碳生活回饋中！您當前可用積點： {user_coins} 🪙")
 
         gifts = [
-            {"name": "全家 77乳加巧克力 🍫", "cost": 30},
-            {"name": "校園影印店 50元抵用券 📑", "cost": 60}
+            {"name": "全家 77乳加巧克力 🍫", "cost": 30,
+             "img": "https://images.unsplash.com/photo-1548907040-4baa42d10919?w=400&q=80"},
+            {"name": "校園影印店 50元抵用券 📑", "cost": 60,
+             "img": "https://images.unsplash.com/photo-1586075010923-2dd4570fb338?w=400&q=80"},
+            {"name": "學辦推薦：現烤熱美式咖啡 ☕", "cost": 50,
+             "img": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&q=80"},
+            {"name": "麥當勞 蛋捲冰淇淋兌換券 🍦", "cost": 40,
+             "img": "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?w=400&q=80"},
+            {"name": "校園體育館 游泳池單次體驗券 🏊", "cost": 100,
+             "img": "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=400&q=80"},
+            {"name": "全家便利商店 100元虛擬禮物卡 🏪", "cost": 150,
+             "img": "https://images.unsplash.com/photo-1534723452862-4c874018d66d?w=400&q=80"},
+            {"name": "期末歐趴：Red Bull 紅牛能量飲料 🥤", "cost": 75,
+             "img": "https://images.unsplash.com/photo-1622543953495-6d7af2495c6e?w=400&q=80"},
+            {"name": "校園機車停車場 免費單月通行證 🏍️", "cost": 200,
+             "img": "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=400&q=80"},
+            {"name": "微軟 A4 頂級雙面影印紙一包 📄", "cost": 120,
+             "img": "https://images.unsplash.com/photo-1532155294029-fa9925369467?w=400&q=80"},
+            {"name": "誠品書店 200元電子即享券 📚", "cost": 280,
+             "img": "https://images.unsplash.com/photo-1513001900722-370f803f498d?w=400&q=80"},
+            {"name": "威秀影城 2D 電影平假日兌換券 🎬", "cost": 450,
+             "img": "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=400&q=80"},
+            {"name": "Apple App Store 300元儲值點數卡 🍏", "cost": 500,
+             "img": "https://images.unsplash.com/photo-1616469829581-73993eb86b02?w=400&q=80"}
         ]
 
+        cols = st.columns(4)
         for idx, g in enumerate(gifts):
-            st.markdown(f"""
-            <div style="background:#ffffff; padding:15px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.02); margin-bottom:12px;">
-                <h5 style="margin:0 0 5px 0;">{g['name']}</h5>
-                <p style="margin:0; color:#06C755; font-weight:bold;">所需點數：{g['cost']} 點</p>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button("確認兌換", key=f"g_{idx}", use_container_width=True):
-                if user_coins >= g['cost']:
-                    modify_coins(current_student, current_uni, -g['cost'])
-                    v_code = f"CM-{random.randint(100000, 999999)}"
-                    conn = sqlite3.connect(DB_NAME)
-                    conn.execute("INSERT INTO vouchers (student_id, gift_name, code, timestamp) VALUES (?, ?, ?, ?)",
-                                 (current_student, g['name'], v_code, "2026-06-02"))
-                    conn.commit()
-                    conn.close()
-                    st.balloons()
-                    st.success(f"🎉 兌換成功！序號 {v_code} 已同步存入左側「我兌換的福利商品」清單中。")
-                    time.sleep(1.5)
-                    st.rerun()
-                else:
-                    st.error("點數不足")
+            with cols[idx % 4]:
+                st.markdown(f"""
+                <div class="gift-grid-card">
+                    <img class="gift-img" src="{g['img']}">
+                    <div class="gift-body">
+                        <h5 style="margin:0 0 8px 0; font-size:15px; color:#212529; height:42px; overflow:hidden;">{g['name']}</h5>
+                        <p style="margin:0; color:#06C755; font-weight:700; font-size:14px;">🪙 {g['cost']} 綠幣</p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if st.button("馬上兌換", key=f"g_{idx}", use_container_width=True):
+                    if user_coins >= g['cost']:
+                        modify_coins(current_student, current_uni, -g['cost'])
+                        v_code = f"CM-{random.randint(100000, 999999)}"
+                        conn = sqlite3.connect(DB_NAME)
+                        conn.execute(
+                            "INSERT INTO vouchers (student_id, gift_name, code, timestamp) VALUES (?, ?, ?, ?)",
+                            (current_student, g['name'], v_code, "2026-06-02"))
+                        conn.commit()
+                        conn.close()
+                        st.balloons()
+                        st.success(f"🎉 兌換成功！序號 {v_code} 已同步解鎖。")
+                        time.sleep(1.2)
+                        st.rerun()
+                    else:
+                        st.error("❌ 餘額不足，多上架物資或參與二手流通可以快速賺取綠幣喔！")
 
     # ------------------------------------------
     # 功能 4: 失物招領中心
@@ -759,10 +918,9 @@ else:
         with m_tab2:
             st.write("➕ 請填寫失物拾獲回報表單：")
             with st.form("lost_form", clear_on_submit=True):
-                l_name = st.text_input("遺失物名稱", placeholder="例如：黑色長夾、AirPods Pro")
-                l_place = st.text_input("在哪裡捡到的", placeholder="例如：大禮堂三樓 C302 教室")
-                l_contact = st.text_input("目前該失物暫存位置 / 認領管道",
-                                          placeholder="例如：送到生輔組 / 私訊我的 LINE")
+                l_name = st.text_input("遺失物名稱", placeholder="例如：黑色長夾")
+                l_place = st.text_input("在哪裡捡到的", placeholder="例如：大禮堂三樓")
+                l_contact = st.text_input("目前該失物暫存位置", placeholder="例如：送到生輔組")
                 l_desc = st.text_area("外觀特徵補充描述")
                 l_file = st.file_uploader("📸 遺失物佐證照", type=['png', 'jpg', 'jpeg'])
 
@@ -782,183 +940,49 @@ else:
                             ("台灣", current_uni, l_name, l_place, l_contact, l_desc, current_student, lb64))
                         conn.commit()
                         conn.close()
-                        st.success("🎉 成功發布跨校失物聯防公告！")
+
+                        # 💡 核心變動：增加失物招領通報計數
+                        increment_mission_counter(current_student, current_uni, "report_count")
+
+                        st.success("🎉 成功發布跨校失物聯防公告！此善舉已計入您的活躍滿額抽獎進度。")
                         time.sleep(0.5)
                         st.rerun()
 
     # ------------------------------------------
-    # 功能 5: 盲盒專區 ($150 / 次) —— 黑白灰極簡極致風
+    # 功能 5: 盲盒專區 ($150 / 次)
     # ------------------------------------------
     elif st.session_state.current_menu == "盲盒專區":
-        # 定義開獎隨機池
         prizes = ["神祕高級大專生福袋", "星巴克 150元電子即享券", "超商免運通行證", "1TB 高速行動硬碟",
                   "極簡黑白復古底片相機"]
 
-        # 利用多行字串將 HTML 完美傳遞，杜絕 Python 對於 CSS 的語法干擾
         blind_box_html = f"""
         <!DOCTYPE html>
         <html lang="zh-TW">
         <head>
             <meta charset="UTF-8">
             <style>
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                }}
-                body {{
-                    background-color: #f8f9fa;
-                    color: #111111;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    padding: 20px 0;
-                }}
-                .container {{
-                    width: 100%;
-                    max-width: 400px;
-                    background: #111111;
-                    color: #ffffff;
-                    border-radius: 20px;
-                    padding: 40px 25px;
-                    text-align: center;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-                }}
-                h2 {{
-                    font-size: 1.5rem;
-                    font-weight: 300;
-                    letter-spacing: 6px;
-                    margin-bottom: 6px;
-                    color: #FFFFFF;
-                }}
-                .subtitle {{
-                    font-size: 0.8rem;
-                    color: #666666;
-                    letter-spacing: 2px;
-                    margin-bottom: 35px;
-                }}
-                .box-display {{
-                    width: 140px;
-                    height: 140px;
-                    background: #1A1A1A;
-                    border: 1px solid #333333;
-                    border-radius: 12px;
-                    margin: 0 auto 35px auto;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    transition: transform 0.5s;
-                }}
-                .box-display.shake {{
-                    animation: shake 0.6s ease-in-out;
-                }}
-                .box-icon {{
-                    font-size: 2.5rem;
-                    color: #555555;
-                    font-weight: 300;
-                }}
-                .price-tag {{
-                    font-size: 1.2rem;
-                    font-weight: 400;
-                    color: #CCCCCC;
-                    margin-bottom: 25px;
-                    letter-spacing: 1px;
-                }}
-                .btn {{
-                    width: 100%;
-                    padding: 14px;
-                    background: #FFFFFF;
-                    color: #000000;
-                    border: none;
-                    border-radius: 8px;
-                    font-size: 0.9rem;
-                    font-weight: 600;
-                    letter-spacing: 3px;
-                    cursor: pointer;
-                    transition: background 0.2s;
-                }}
-                .btn:hover {{
-                    background: #DDDDDD;
-                }}
-                /* 信用卡金流彈窗 */
-                .modal-overlay {{
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background: rgba(0, 0, 0, 0.85);
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    opacity: 0;
-                    pointer-events: none;
-                    transition: opacity 0.3s;
-                    z-index: 100;
-                }}
-                .modal-overlay.active {{
-                    opacity: 1;
-                    pointer-events: auto;
-                }}
-                .modal {{
-                    background: #1A1A1A;
-                    border: 1px solid #2C2C2C;
-                    border-radius: 16px;
-                    width: 90%;
-                    max-width: 340px;
-                    padding: 30px 20px;
-                }}
-                .modal-title {{
-                    font-size: 0.95rem;
-                    font-weight: 400;
-                    letter-spacing: 2px;
-                    margin-bottom: 25px;
-                    color: #EEEEEE;
-                    text-align: center;
-                }}
-                .form-group {{
-                    margin-bottom: 16px;
-                    text-align: left;
-                }}
-                .form-group label {{
-                    display: block;
-                    font-size: 0.7rem;
-                    color: #777777;
-                    margin-bottom: 6px;
-                    letter-spacing: 1px;
-                }}
-                .form-control {{
-                    width: 100%;
-                    padding: 11px;
-                    background: #242424;
-                    border: 1px solid #333333;
-                    border-radius: 6px;
-                    color: #FFFFFF;
-                    font-size: 0.9rem;
-                    outline: none;
-                }}
-                .form-control:focus {{
-                    border-color: #666666;
-                }}
-                .form-row {{
-                    display: flex;
-                    gap: 10px;
-                }}
-                .modal-actions {{
-                    margin-top: 25px;
-                    display: flex;
-                    gap: 10px;
-                }}
-                .btn-secondary {{
-                    background: transparent;
-                    color: #888888;
-                    border: 1px solid #333333;
-                }}
-                .btn-secondary:hover {{
-                    color: #FFFFFF;
-                    border-color: #555555;
-                }}
+                * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+                body {{ background-color: #f8f9fa; color: #111111; display: flex; justify-content: center; align-items: center; padding: 20px 0; }}
+                .container {{ width: 100%; max-width: 400px; background: #111111; color: #ffffff; border-radius: 20px; padding: 40px 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.15); }}
+                h2 {{ font-size: 1.5rem; font-weight: 300; letter-spacing: 6px; margin-bottom: 6px; color: #FFFFFF; }}
+                .subtitle {{ font-size: 0.8rem; color: #666666; letter-spacing: 2px; margin-bottom: 35px; }}
+                .box-display {{ width: 140px; height: 140px; background: #1A1A1A; border: 1px solid #333333; border-radius: 12px; margin: 0 auto 35px auto; display: flex; justify-content: center; align-items: center; transition: transform 0.5s; }}
+                .box-display.shake {{ animation: shake 0.6s ease-in-out; }}
+                .box-icon {{ font-size: 2.5rem; color: #555555; font-weight: 300; }}
+                .price-tag {{ font-size: 1.2rem; font-weight: 400; color: #CCCCCC; margin-bottom: 25px; letter-spacing: 1px; }}
+                .btn {{ width: 100%; padding: 14px; background: #FFFFFF; color: #000000; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; letter-spacing: 3px; cursor: pointer; transition: background 0.2s; }}
+                .btn:hover {{ background: #DDDDDD; }}
+                .modal-overlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 100; }}
+                .modal-overlay.active {{ opacity: 1; pointer-events: auto; }}
+                .modal {{ background: #1A1A1A; border: 1px solid #2C2C2C; border-radius: 16px; width: 90%; max-width: 340px; padding: 30px 20px; }}
+                .modal-title {{ font-size: 0.95rem; font-weight: 400; letter-spacing: 2px; margin-bottom: 25px; color: #EEEEEE; text-align: center; }}
+                .form-group {{ margin-bottom: 16px; text-align: left; }}
+                .form-group label {{ display: block; font-size: 0.7rem; color: #777777; margin-bottom: 6px; letter-spacing: 1px; }}
+                .form-control {{ width: 100%; padding: 11px; background: #242424; border: 1px solid #333333; border-radius: 6px; color: #FFFFFF; font-size: 0.9rem; outline: none; }}
+                .form-control:focus {{ border-color: #666666; }}
+                .modal-actions {{ margin-top: 25px; display: flex; gap: 10px; }}
+                .btn-secondary {{ background: transparent; color: #888888; border: 1px solid #333333; }}
+                .btn-secondary:hover {{ color: #FFFFFF; border-color: #555555; }}
                 @keyframes shake {{
                     0% {{ transform: translate(1px, 1px) rotate(0deg); }}
                     15% {{ transform: translate(-3px, -1px) rotate(-1deg); }}
@@ -971,34 +995,20 @@ else:
             </style>
         </head>
         <body>
-
             <div class="container">
                 <h2>BLIND BOX</h2>
                 <div class="subtitle">智慧市集・限量校園盲盒</div>
-                <div class="box-display" id="blindBox">
-                    <div class="box-icon">?</div>
-                </div>
+                <div class="box-display" id="blindBox"><div class="box-icon">?</div></div>
                 <div class="price-tag">$150 / 次</div>
                 <button class="btn" id="openPayBtn">購買盲盒</button>
             </div>
-
             <div class="modal-overlay" id="payModal">
                 <div class="modal">
                     <div class="modal-title">CREDIT CARD</div>
                     <form id="paymentForm" onsubmit="handlePayment(event)">
                         <div class="form-group">
                             <label>卡號</label>
-                            <input type="text" class="form-control" placeholder="•••• •••• •••• ••••" maxlength="19" required>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group" style="flex: 1;">
-                                <label>到期日</label>
-                                <input type="text" class="form-control" placeholder="MM/YY" maxlength="5" required>
-                            </div>
-                            <div class="form-group" style="flex: 1;">
-                                <label>安全碼</label>
-                                <input type="text" class="form-control" placeholder="CVC" maxlength="3" required>
-                            </div>
+                            <input type="text" class="form-control" placeholder="•••• •••• •••• ••••" required>
                         </div>
                         <div class="modal-actions">
                             <button type="button" class="btn btn-secondary" id="closePayBtn">取消</button>
@@ -1007,14 +1017,11 @@ else:
                     </form>
                 </div>
             </div>
-
             <script>
                 const openPayBtn = document.getElementById('openPayBtn');
                 const closePayBtn = document.getElementById('closePayBtn');
                 const payModal = document.getElementById('payModal');
                 const blindBox = document.getElementById('blindBox');
-
-                // 傳入 Python 宣告的隨機開獎池
                 const prizePool = {prizes};
 
                 openPayBtn.addEventListener('click', () => payModal.classList.add('active'));
@@ -1024,10 +1031,8 @@ else:
                     event.preventDefault();
                     payModal.classList.remove('active');
                     blindBox.classList.add('shake');
-
                     setTimeout(() => {{
                         blindBox.classList.remove('shake');
-                        // 隨機開獎演算法
                         const randomPrize = prizePool[Math.floor(Math.random() * prizePool.length)];
                         alert('✨ 支付成功！\\n\\n恭喜您幸運抽中：\\n【' + randomPrize + '】\\n\\n我們將透過您的校園學號聯絡發貨，請留意通知！');
                     }}, 1200);
@@ -1036,6 +1041,4 @@ else:
         </body>
         </html>
         """
-
-        # 渲染極簡黑白灰 HTML
         components.html(blind_box_html, height=520, scrolling=False)
