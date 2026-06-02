@@ -189,9 +189,9 @@ st.markdown("""<style>
 # ==========================================
 # 0. 地理大數據地區歸屬分流
 # ==========================================
-DB_NAME = 'streamlit_campus_market_v116_privacy_fixed.db'
+DB_NAME = 'streamlit_campus_market_v117_privacy_fixed.db'
 
-# 按地區嚴格畫分大專院校
+# 按地區嚴格畫分大專院校 (僅用於失物招領功能區連動)
 REGION_UNI_MAP = {
     "北部地區": ["國立臺灣大學", "國立政治大學", "國立臺灣師範大學", "國立中央大學", "國立臺灣科技大學",
                  "國立臺北科技大學", "國立臺北大學", "輔仁大學", "東吳大學", "淡江大學", "銘傳大學", "世新大學",
@@ -204,13 +204,19 @@ REGION_UNI_MAP = {
 }
 
 TAIWAN_REGIONS = list(REGION_UNI_MAP.keys())
-# 攤平所有學校清單供登入與預設比對
-ALL_UNIVERSITIES = []
-for unis in REGION_UNI_MAP.values():
-    ALL_UNIVERSITIES.extend(unis)
+
+# 全國不分區學校大清單 (登入、註冊、查詢等主邏輯恢復此原始設定)
+ALL_UNIVERSITIES = [
+    "國立臺灣大學", "國立政治大學", "國立臺灣師範大學", "國立清華大學", "國立陽明交通大學",
+    "國立成功大學", "國立中興大學", "國立中央大學", "國立中山大學", "國立中正大學",
+    "國立東華大學", "國立臺東大學", "國立澎湖科技大學", "國立金門大學", "國立雲林科技大學",
+    "國立臺灣科技大學", "國立臺北科技大學", "國立臺北大學", "輔仁大學", "東吳大學",
+    "淡江大學", "銘傳大學", "世新大學", "中國文化大學", "逢甲大學", "靜宜大學",
+    "中原大學", "長庚大學", "元智大學", "實踐大學"
+]
 
 
-# 自動尋找某間學校隸屬哪個區域
+# 自動尋找某間學校隸屬哪個區域 (僅供失物招領初始化使用)
 def find_region_by_uni(uni_name):
     for region, unis in REGION_UNI_MAP.items():
         if uni_name in unis:
@@ -251,14 +257,19 @@ INTERNAL_BLINDBOX_POOL = [
 def init_db():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False)
     cursor = conn.cursor()
+    # 欄位升級：加入 phone 手機欄位做忘記密碼強驗證
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             student_id TEXT NOT NULL, name TEXT DEFAULT '同學', password TEXT NOT NULL, university TEXT NOT NULL, 
-            line_id TEXT DEFAULT '未填寫', green_coins INTEGER DEFAULT 100, email TEXT DEFAULT '',
+            line_id TEXT DEFAULT '未填寫', green_coins INTEGER DEFAULT 100, email TEXT DEFAULT '', phone TEXT DEFAULT '',
             buy_count INTEGER DEFAULT 0, report_count INTEGER DEFAULT 0,
             PRIMARY KEY (student_id, university)
         )
     ''')
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''")
+    except:
+        pass
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN buy_count INTEGER DEFAULT 0")
     except:
@@ -358,15 +369,15 @@ def increment_mission_counter(student_id, university, field):
 
 
 # ==========================================
-# 3. 登入 / 註冊區
+# 3. 登入 / 註冊區 (全部恢復成原本的全國學校大清單)
 # ==========================================
 if not st.session_state.logged_in:
     st.markdown('<div class="main-title">🎓 Campus Market 全國大學生智慧市集</div>', unsafe_allow_html=True)
     mode = st.radio("請選擇操作項目：", ["🔑 同學登入", "📝 新同學註冊帳號", "❓ 忘記密碼"], horizontal=True)
 
     if mode == "🔑 同學登入":
-        log_type = st.selectbox("請選擇所在區域", TAIWAN_REGIONS)
-        log_uni = st.selectbox("請選取您的就讀學校", REGION_UNI_MAP[log_type])
+        # 恢復原本設定：直接選取全國學校
+        log_uni = st.selectbox("請選取您的就讀學校", ALL_UNIVERSITIES)
 
         with st.form("login_form"):
             sid = st.text_input("學號", placeholder="請輸入學號")
@@ -390,41 +401,46 @@ if not st.session_state.logged_in:
         st.subheader("填寫校園註冊資料")
         reg_name = st.text_input("您的真實姓名/稱呼 *")
         reg_sid = st.text_input("註冊學號 *")
+        reg_phone = st.text_input("手機號碼 * (密碼安全驗證必填)")
         reg_email = st.text_input("學校聯絡電子郵件 *")
-        reg_type = st.selectbox("學校所在區域 *", TAIWAN_REGIONS)
-        reg_uni = st.selectbox("所屬大學 *", REGION_UNI_MAP[reg_type])
+        # 恢復原本設定：直接選取全國學校
+        reg_uni = st.selectbox("所屬大學 *", ALL_UNIVERSITIES)
         reg_line = st.text_input("LINE ID *")
         reg_pass = st.text_input("設定系統密碼 *", type="password")
 
         if st.button("提交註冊並領取 100 幣 🪙"):
-            if not reg_name or not reg_sid or not reg_email or not reg_pass:
+            if not reg_name or not reg_sid or not reg_phone or not reg_email or not reg_pass:
                 st.error("請完整填寫所有必填欄位！")
             else:
                 try:
                     conn = sqlite3.connect(DB_NAME)
                     conn.execute(
-                        "INSERT INTO users (student_id, name, password, university, line_id, green_coins, email, buy_count, report_count) VALUES (?, ?, ?, ?, ?, 100, ?, 0, 0)",
-                        (reg_sid, reg_name, reg_pass, reg_uni, reg_line, reg_email))
+                        "INSERT INTO users (student_id, name, password, university, line_id, green_coins, email, phone, buy_count, report_count) VALUES (?, ?, ?, ?, ?, 100, ?, ?, 0, 0)",
+                        (reg_sid, reg_name, reg_pass, reg_uni, reg_line, reg_email, reg_phone))
                     conn.commit()
                     conn.close()
                     st.success("🎉 註冊成功！快切換到「同學登入」吧！")
-                except:
+                except Exception as e:
                     st.error("在該校中此學號已被註冊過。")
 
     elif mode == "❓ 忘記密碼":
         st.subheader("🔒 自助安全密碼重設")
-        forgot_type = st.selectbox("請選擇學校區域", TAIWAN_REGIONS, key="forgot_type")
-        forgot_uni = st.selectbox("請選擇就讀大學", REGION_UNI_MAP[forgot_type], key="forgot_uni")
+        # 恢復原本設定：直接選取全國學校
+        forgot_uni = st.selectbox("請選擇就讀大學", ALL_UNIVERSITIES)
         forgot_sid = st.text_input("學號", placeholder="請輸入原註冊學號")
         forgot_email = st.text_input("學校聯絡電子郵件 (Email)", placeholder="請輸入原註冊 Email")
+        # 🌟 新增手機欄位多重安全驗證
+        forgot_phone = st.text_input("手機號碼", placeholder="請輸入原註冊手機號碼")
 
         conn = sqlite3.connect(DB_NAME)
-        user_check = conn.execute("SELECT name FROM users WHERE student_id = ? AND university = ? AND email = ?",
-                                  (forgot_sid, forgot_uni, forgot_email)).fetchone()
+        # 驗證條件加入 phone 欄位進行安全比對
+        user_check = conn.execute(
+            "SELECT name FROM users WHERE student_id = ? AND university = ? AND email = ? AND phone = ?",
+            (forgot_sid, forgot_uni, forgot_email, forgot_phone)).fetchone()
         conn.close()
 
         if user_check:
-            st.success(f"✅ 身份驗證通過！ 找到 {mask_user_name(user_check[0])} 同學的帳號。")
+            st.success(f"✅ 雙重身分驗證通過！ 找到 {mask_user_name(user_check[0])} 同學的帳號。")
             new_password = st.text_input("🔑 請輸入新密碼", type="password", placeholder="請輸入您想變更的新密碼")
             confirm_password = st.text_input("🔁 再次確認新密碼", type="password", placeholder="請再次輸入新密碼")
 
@@ -441,8 +457,8 @@ if not st.session_state.logged_in:
                     conn.close()
                     st.success("🎉 密碼修改成功！請切換到「🔑 同學登入」頁面進行登入。")
         else:
-            if forgot_sid or forgot_email:
-                st.error("❌ 查無對應資料。學號、學校或電子郵件輸入有誤，請仔細檢查。")
+            if forgot_sid or forgot_email or forgot_phone:
+                st.error("❌ 身分驗證不符。學號、學校、電子郵件或手機號碼輸入錯誤，請仔細檢查。")
 
 # ==========================================
 # 4. 主功能區
@@ -791,7 +807,7 @@ else:
                         st.rerun()
 
     # ------------------------------------------
-    # 功能 4: 失物招領中心（地區學校連動與照片隱私提示強化版）
+    # 功能 4: 失物招領中心🌟 (唯獨保留此處進行地區/學校連動與隱私警語)
     # ------------------------------------------
     elif st.session_state.current_menu == "失物招領中心":
         st.subheader("🔍 校園失物尋找與招領通報系統")
@@ -799,7 +815,7 @@ else:
 
         with tab_list:
             st.markdown(f"#### 🏫 當前定位學校：**{current_uni}**")
-            st.caption("🔒 隱私安全保護：系統預設僅鎖定並顯示您就讀學校的失物資訊。")
+            st.caption("🔒 隱私安全保護：系統預設僅顯示您就讀學校的失物資訊。")
 
             search_mode = st.radio("請選擇瀏覽範圍：", [f"只看本校 ({current_uni})", "🔍 跨校/特定學校獨立查詢"],
                                    horizontal=True)
@@ -814,12 +830,11 @@ else:
                     target_region = st.selectbox("🌍 選擇目標區域", TAIWAN_REGIONS,
                                                  index=TAIWAN_REGIONS.index(target_region))
                 with filter_c2:
-                    # ⚠️ 這裡實現區域連動學校：只出現該地區的學校
+                    # ✅ 地區關聯動態清單
                     regional_unis = REGION_UNI_MAP[target_region]
                     default_idx = regional_unis.index(current_uni) if current_uni in regional_unis else 0
                     target_uni = st.selectbox("🏫 欲查詢的特定大學", regional_unis, index=default_idx)
 
-            # 從資料庫撈取資料
             conn = sqlite3.connect(DB_NAME)
             lost_df = pd.read_sql_query(
                 "SELECT id, region, university, item_name, place, contact_location, description, image_base64 FROM lost_found WHERE status='招領中' AND university = ?",
@@ -858,13 +873,11 @@ else:
             with st.form("lost_form", clear_on_submit=True):
                 rep_c1, rep_c2 = st.columns(2)
                 with rep_c1:
-                    # 預設抓登入者學校的地區
                     user_default_region = find_region_by_uni(current_uni)
                     l_region = st.selectbox("🌍 拾獲區域 *", TAIWAN_REGIONS,
                                             index=TAIWAN_REGIONS.index(user_default_region))
                 with rep_c2:
-                    # ⚠️ 這裡實現區域連動學校：依據選取的區域，動態改變可選擇的大學
-                    # 由於 Streamlit 表單內動態連動限制，此選單會綁定上方選取的區域清單
+                    # ✅ 地區關聯動態清單
                     report_unis = REGION_UNI_MAP[l_region]
                     user_uni_idx = report_unis.index(current_uni) if current_uni in report_unis else 0
                     l_uni = st.selectbox("🏫 拾獲學校 *", report_unis, index=user_uni_idx)
@@ -874,7 +887,7 @@ else:
                 l_contact = st.text_input("目前暫時寄放/保管地點 *", placeholder="例如：大門警衛室、學務處生輔組")
                 l_desc = st.text_area("外觀備註/特徵描述", placeholder="例如：卡片背面有特定貼紙，內無填寫姓名。")
 
-                # 📸 隱私警告上傳欄位強化
+                # 📸 隱私警告提醒字樣
                 st.markdown("""
                 <div style="background-color: #fff9db; border-left: 5px solid #fcc419; padding: 12px; border-radius: 6px; margin-bottom: 8px;">
                     <span style="color: #664d03; font-weight: bold; font-size: 14px;">🔒 隱私安全上傳提醒：</span><br>
