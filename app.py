@@ -81,9 +81,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 0. 常數地圖設定 與 終極全新資料庫命名
+# 0. 常數地圖設定 與 乾淨重置資料庫
 # ==========================================
-DB_NAME = 'streamlit_campus_market_v99_final.db'  # 換上保證全新的乾淨資料庫名稱
+DB_NAME = 'streamlit_campus_market_v101_final.db'  # 再次切換新環境，徹底洗空歷史資料
 
 REGION_UNIVERSITY_MAP = {
     "中部地區": ["國立雲林科技大學", "國立中興大學", "逢甲大學", "東海大學"],
@@ -97,7 +97,7 @@ PRODUCT_CATEGORIES = ["全部類型", "書籍", "3C配件", "生活雜物", "服
 
 
 # ==========================================
-# 1. 資料庫基礎建設 (加入 try-except 資安強固防護)
+# 1. 資料庫基礎建設 (安全強固防護)
 # ==========================================
 def init_db():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False)
@@ -129,11 +129,11 @@ def init_db():
         )
     ''')
 
-    # 💡 終極強固：用 try-except 包覆，即使雲端有殘留結構，也絕對不會拋出 OperationalError 讓網頁死掉
+    # 💡 依照需求更改為新的測試帳號：A66666666 / 1234
     try:
         cursor.execute("""
             INSERT OR IGNORE INTO users (student_id, password, university, line_id, green_coins, email) 
-            VALUES ('B11321123', 'A66666666', '國立雲林科技大學', 'yuntech_cool', 150, 'b11321123@yuntech.edu.tw')
+            VALUES ('A66666666', '1234', '國立雲林科技大學', 'yuntech_cool', 150, 'a66666666@yuntech.edu.tw')
         """)
     except Exception as e:
         pass
