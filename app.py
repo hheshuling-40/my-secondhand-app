@@ -254,7 +254,6 @@ def init_db():
         )
     ''')
 
-    # 檢查並動態補上 buy_count 與 report_count 欄位（防舊資料庫報錯）
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN buy_count INTEGER DEFAULT 0")
     except:
@@ -438,6 +437,27 @@ else:
         st.write(f"學號｜**{current_student}**")
         st.metric(label="我的環保集點幣", value=f"{user_coins} 🪙")
 
+        # ⚙️ 測試專用速推調速器（方便測試滿5次的情境）
+        st.markdown('---')
+        st.markdown("<small style='color: #7048e8; font-weight: bold;'>🛠️ 測試快捷速推面板</small>",
+                    unsafe_allow_html=True)
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            if st.button("模拟购买 +1", key="test_buy_btn", use_container_width=True):
+                increment_mission_counter(current_student, current_uni, "buy_count")
+                st.rerun()
+        with col_t2:
+            if st.button("模拟通报 +1", key="test_rep_btn", use_container_width=True):
+                increment_mission_counter(current_student, current_uni, "report_count")
+                st.rerun()
+        if st.button("🗑️ 清空計數重來", key="test_clear_btn", use_container_width=True):
+            conn = sqlite3.connect(DB_NAME)
+            conn.execute("UPDATE users SET buy_count=0, report_count=0 WHERE student_id=? AND university=?",
+                         (current_student, current_uni))
+            conn.commit()
+            conn.close()
+            st.rerun()
+
         # 🎯 滿 5 次抽獎激勵進度條面板
         st.markdown('---')
         st.markdown(f"""
@@ -451,7 +471,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 判斷是否滿足抽獎資格 (大於0且是5的倍數，或餘數為0)
+        # 判斷是否滿足抽獎資格 (大於0且是5的倍數)
         if total_actions > 0 and (total_actions % 5 == 0):
             st.warning("🎉 恭喜！您已符合解鎖抽獎條件！")
 
@@ -474,13 +494,11 @@ else:
                     st.balloons()
                     st.success(f"🎊 恭喜抽中：【{won_prize}】！")
 
-                    # 若抽中綠幣，直接歸戶
                     if "50 點綠幣" in won_prize:
                         modify_coins(current_student, current_uni, 50)
                     elif "100 點綠幣" in won_prize:
                         modify_coins(current_student, current_uni, 100)
                     else:
-                        # 其他獎項寫入福利券清單
                         v_code = f"DRAW-{random.randint(100000, 999999)}"
                         conn = sqlite3.connect(DB_NAME)
                         conn.execute(
@@ -490,9 +508,8 @@ else:
                         conn.close()
                         st.info("💡 實體獎勵換領序號已同步保存至下方的福利商品清單中。")
 
-                    # 抽完後，為了讓使用者能重新累計，將計數器各扣除一部分或重設進度（這裡採用各減去按比例次數或由管理者定義。為求簡單，我們直接在扣除總數 5 次，保持計數滾動）
+                    # 抽完後扣除 5 次讓玩家可以繼續循環累計
                     conn = sqlite3.connect(DB_NAME)
-                    # 扣除累計，使其脫離 5 的倍數狀態以防重複點選
                     conn.execute(
                         "UPDATE users SET buy_count = 0, report_count = 0 WHERE student_id = ? AND university = ?",
                         (current_student, current_uni))
@@ -703,7 +720,6 @@ else:
                     conn.commit()
                     conn.close()
 
-                    # 💡 核心變動：增加購買計數
                     increment_mission_counter(current_student, current_uni, "buy_count")
 
                     st.success("🎉 訂單發送成功！交易已計入您的活躍滿額抽獎。")
@@ -777,7 +793,7 @@ else:
     # 功能 3: 綠幣集點福利
     # ------------------------------------------
     elif st.session_state.current_menu == "綠幣集點福利":
-        st.subheader("🪙 依據 `image_4a9984.png` 優化：綠幣集點福利社")
+        st.subheader("🪙 綠幣集點福利社")
         st.info(f"💡 綠色低碳生活回饋中！您當前可用積點： {user_coins} 🪙")
 
         gifts = [
@@ -792,29 +808,17 @@ else:
             {"name": "校園體育館 游泳池單次體驗券 🏊", "cost": 100,
              "img": "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=400&q=80"},
             {"name": "全家便利商店 100元虛擬禮物卡 🏪", "cost": 150,
-             "img": "https://images.unsplash.com/photo-1534723452862-4c874018d66d?w=400&q=80"},
-            {"name": "期末歐趴：Red Bull 紅牛能量飲料 🥤", "cost": 75,
-             "img": "https://images.unsplash.com/photo-1622543953495-6d7af2495c6e?w=400&q=80"},
-            {"name": "校園機車停車場 免費單月通行證 🏍️", "cost": 200,
-             "img": "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=400&q=80"},
-            {"name": "微軟 A4 頂級雙面影印紙一包 📄", "cost": 120,
-             "img": "https://images.unsplash.com/photo-1532155294029-fa9925369467?w=400&q=80"},
-            {"name": "誠品書店 200元電子即享券 📚", "cost": 280,
-             "img": "https://images.unsplash.com/photo-1513001900722-370f803f498d?w=400&q=80"},
-            {"name": "威秀影城 2D 電影平假日兌換券 🎬", "cost": 450,
-             "img": "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=400&q=80"},
-            {"name": "Apple App Store 300元儲值點數卡 🍏", "cost": 500,
-             "img": "https://images.unsplash.com/photo-1616469829581-73993eb86b02?w=400&q=80"}
+             "img": "https://images.unsplash.com/photo-1534723452862-4c874018d66d?w=400&q=80"}
         ]
 
-        cols = st.columns(4)
+        cols = st.columns(3)
         for idx, g in enumerate(gifts):
-            with cols[idx % 4]:
+            with cols[idx % 3]:
                 st.markdown(f"""
                 <div class="gift-grid-card">
                     <img class="gift-img" src="{g['img']}">
                     <div class="gift-body">
-                        <h5 style="margin:0 0 8px 0; font-size:15px; color:#212529; height:42px; overflow:hidden;">{g['name']}</h5>
+                        <h5 style="margin:0 0 8px 0; font-size:15px; color:#212529;">{g['name']}</h5>
                         <p style="margin:0; color:#06C755; font-weight:700; font-size:14px;">🪙 {g['cost']} 綠幣</p>
                     </div>
                 </div>
@@ -845,75 +849,32 @@ else:
         m_tab1, m_tab2 = st.tabs(["🔍 招領佈告欄", "➕ 發布失物通報"])
 
         with m_tab1:
-            sub_tab_local, sub_tab_national = st.tabs([f"🏫 本校公告 ({current_uni})", "🌐 全台跨校聯防"])
+            conn = sqlite3.connect(DB_NAME)
+            query_local = "SELECT id, item_name, place, contact_location, description, image_base64, finder_id FROM lost_found WHERE status='招領中' AND university=?"
+            df_local = pd.read_sql_query(query_local, conn, params=(current_uni,))
+            conn.close()
 
-            with sub_tab_local:
-                conn = sqlite3.connect(DB_NAME)
-                query_local = "SELECT id, region, university, item_name, place, contact_location, description, image_base64, finder_id FROM lost_found WHERE status='招領中' AND university=?"
-                df_local = pd.read_sql_query(query_local, conn, params=(current_uni,))
-                conn.close()
-
-                if df_local.empty:
-                    st.info(f"💡 目前 {current_uni} 暫無校內失物招領公告。")
-                else:
-                    for idx, row in df_local.iterrows():
-                        masked_finder_name = get_seller_masked_name(row['finder_id'])
-                        st.markdown(f"""
-                        <div class="lost-card" style="border-left: 5px solid #2ecc71; background-color: #fafffa;">
-                            <h5>🔍 【本校專區】{row['item_name']}</h5>
-                            <p style='margin:2px 0; font-size:13px;'>📍 <b>拾獲地點：</b>{row['place']}</p>
-                            <p style='margin:2px 0; font-size:13px; color:#e67e22;'>🏢 <b>認領位置：</b>{row['contact_location']}</p>
-                            <p style='margin:2px 0; font-size:13px; color:#7f8c8d;'>👤 <b>善心拾獲人：</b>{masked_finder_name} 同學</p>
-                            <small>備註：{row['description']}</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        if row['image_base64']: st.image(row['image_base64'], width=220)
-                        if st.button("✨ 本校物歸原主（撤除公告）", key=f"res_local_{row['id']}",
-                                     use_container_width=True):
-                            conn = sqlite3.connect(DB_NAME)
-                            conn.execute("UPDATE lost_found SET status='已認領' WHERE id=?", (row['id'],))
-                            conn.commit()
-                            conn.close()
-                            st.success("🎉 順利撤除校內公告。")
-                            time.sleep(0.5)
-                            st.rerun()
-
-            with sub_tab_national:
-                st.write("🌐 篩選其他學校的失物看板：")
-                c_t1, c_t2 = st.columns(2)
-                with c_t1:
-                    nat_type = st.selectbox("學校體系篩選", CAMPUS_LABELS)
-                with c_t2:
-                    search_nat_uni = st.selectbox("特定學校篩選",
-                                                  ["全部學校"] + [u for u in CAMPUS_TYPE_MAP[nat_type] if
-                                                                  u != current_uni])
-
-                conn = sqlite3.connect(DB_NAME)
-                if search_nat_uni == "全部學校":
-                    placeholders = ','.join(['?'] * len(CAMPUS_TYPE_MAP[nat_type]))
-                    query_nat = f"SELECT id, region, university, item_name, place, contact_location, description, image_base64, finder_id FROM lost_found WHERE status='招領中' AND university != ? AND university IN ({placeholders})"
-                    params = [current_uni] + CAMPUS_TYPE_MAP[nat_type]
-                    df_nat = pd.read_sql_query(query_nat, conn, params=params)
-                else:
-                    query_nat = "SELECT id, region, university, item_name, place, contact_location, description, image_base64, finder_id FROM lost_found WHERE status='招領中' AND university = ?"
-                    df_nat = pd.read_sql_query(query_nat, conn, params=(search_nat_uni,))
-                conn.close()
-
-                if df_nat.empty:
-                    st.info("💡 目前所選之其他大學暫無失物招領公告。")
-                else:
-                    for idx, row in df_nat.iterrows():
-                        masked_finder_name = get_seller_masked_name(row['finder_id'])
-                        st.markdown(f"""
-                        <div class="lost-card">
-                            <h5>🔍 【外校聯防】{row['item_name']} ({row['university']})</h5>
-                            <p style='margin:2px 0; font-size:13px;'>📍 <b>拾獲地點：</b>{row['place']}</p>
-                            <p style='margin:2px 0; font-size:13px; color:#e67e22;'>🏢 <b>物資存放位置：</b>{row['contact_location']}</p>
-                            <p style='margin:2px 0; font-size:13px; color:#7f8c8d;'>👤 <b>拾獲回報：</b>{masked_finder_name} 同學</p>
-                            <small>描述：{row['description']}</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        if row['image_base64']: st.image(row['image_base64'], width=220)
+            if df_local.empty:
+                st.info(f"💡 目前 {current_uni} 暫無校內失物招領公告。")
+            else:
+                for idx, row in df_local.iterrows():
+                    masked_finder_name = get_seller_masked_name(row['finder_id'])
+                    st.markdown(f"""
+                    <div class="lost-card" style="border-left: 5px solid #2ecc71; background-color: #fafffa;">
+                        <h5>🔍 【本校專區】{row['item_name']}</h5>
+                        <p style='margin:2px 0; font-size:13px;'>📍 <b>拾獲地點：</b>{row['place']}</p>
+                        <p style='margin:2px 0; font-size:13px; color:#e67e22;'>🏢 <b>認領位置：</b>{row['contact_location']}</p>
+                        <p style='margin:2px 0; font-size:13px; color:#7f8c8d;'>👤 <b>善心拾獲人：</b>{masked_finder_name} 同學</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    if st.button("✨ 物歸原主（撤除公告）", key=f"res_local_{row['id']}", use_container_width=True):
+                        conn = sqlite3.connect(DB_NAME)
+                        conn.execute("UPDATE lost_found SET status='已認領' WHERE id=?", (row['id'],))
+                        conn.commit()
+                        conn.close()
+                        st.success("🎉 順利撤除校內公告。")
+                        time.sleep(0.5)
+                        st.rerun()
 
         with m_tab2:
             st.write("➕ 請填寫失物拾獲回報表單：")
@@ -922,29 +883,19 @@ else:
                 l_place = st.text_input("在哪裡捡到的", placeholder="例如：大禮堂三樓")
                 l_contact = st.text_input("目前該失物暫存位置", placeholder="例如：送到生輔組")
                 l_desc = st.text_area("外觀特徵補充描述")
-                l_file = st.file_uploader("📸 遺失物佐證照", type=['png', 'jpg', 'jpeg'])
 
                 if st.form_submit_button("📢 廣播發布招領資訊"):
                     if l_name and l_place and l_contact:
-                        lb64 = ""
-                        if l_file is not None:
-                            img = Image.open(l_file).convert("RGB")
-                            img.thumbnail((300, 300))
-                            buffered = io.BytesIO()
-                            img.save(buffered, format="JPEG")
-                            lb64 = f"data:image/jpeg;base64,{base64.b64encode(buffered.getvalue()).decode()}"
-
                         conn = sqlite3.connect(DB_NAME)
                         conn.execute(
                             "INSERT INTO lost_found (region, university, item_name, place, contact_location, description, finder_id, image_base64) VALUES (?,?,?,?,?,?,?,?)",
-                            ("台灣", current_uni, l_name, l_place, l_contact, l_desc, current_student, lb64))
+                            ("台灣", current_uni, l_name, l_place, l_contact, l_desc, current_student, ""))
                         conn.commit()
                         conn.close()
 
-                        # 💡 核心變動：增加失物招領通報計數
                         increment_mission_counter(current_student, current_uni, "report_count")
 
-                        st.success("🎉 成功發布跨校失物聯防公告！此善舉已計入您的活躍滿額抽獎進度。")
+                        st.success("🎉 成功發布公告！此善舉已計入活躍滿額抽獎進度。")
                         time.sleep(0.5)
                         st.rerun()
 
@@ -952,93 +903,16 @@ else:
     # 功能 5: 盲盒專區 ($150 / 次)
     # ------------------------------------------
     elif st.session_state.current_menu == "盲盒專區":
-        prizes = ["神祕高級大專生福袋", "星巴克 150元電子即享券", "超商免運通行證", "1TB 高速行動硬碟",
-                  "極簡黑白復古底片相機"]
-
+        prizes = ["神祕高級大專生福袋", "星巴克 150元電子即享券", "超商免運通行證", "1TB 高速行動硬碟"]
         blind_box_html = f"""
-        <!DOCTYPE html>
-        <html lang="zh-TW">
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
-                body {{ background-color: #f8f9fa; color: #111111; display: flex; justify-content: center; align-items: center; padding: 20px 0; }}
-                .container {{ width: 100%; max-width: 400px; background: #111111; color: #ffffff; border-radius: 20px; padding: 40px 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.15); }}
-                h2 {{ font-size: 1.5rem; font-weight: 300; letter-spacing: 6px; margin-bottom: 6px; color: #FFFFFF; }}
-                .subtitle {{ font-size: 0.8rem; color: #666666; letter-spacing: 2px; margin-bottom: 35px; }}
-                .box-display {{ width: 140px; height: 140px; background: #1A1A1A; border: 1px solid #333333; border-radius: 12px; margin: 0 auto 35px auto; display: flex; justify-content: center; align-items: center; transition: transform 0.5s; }}
-                .box-display.shake {{ animation: shake 0.6s ease-in-out; }}
-                .box-icon {{ font-size: 2.5rem; color: #555555; font-weight: 300; }}
-                .price-tag {{ font-size: 1.2rem; font-weight: 400; color: #CCCCCC; margin-bottom: 25px; letter-spacing: 1px; }}
-                .btn {{ width: 100%; padding: 14px; background: #FFFFFF; color: #000000; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; letter-spacing: 3px; cursor: pointer; transition: background 0.2s; }}
-                .btn:hover {{ background: #DDDDDD; }}
-                .modal-overlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 100; }}
-                .modal-overlay.active {{ opacity: 1; pointer-events: auto; }}
-                .modal {{ background: #1A1A1A; border: 1px solid #2C2C2C; border-radius: 16px; width: 90%; max-width: 340px; padding: 30px 20px; }}
-                .modal-title {{ font-size: 0.95rem; font-weight: 400; letter-spacing: 2px; margin-bottom: 25px; color: #EEEEEE; text-align: center; }}
-                .form-group {{ margin-bottom: 16px; text-align: left; }}
-                .form-group label {{ display: block; font-size: 0.7rem; color: #777777; margin-bottom: 6px; letter-spacing: 1px; }}
-                .form-control {{ width: 100%; padding: 11px; background: #242424; border: 1px solid #333333; border-radius: 6px; color: #FFFFFF; font-size: 0.9rem; outline: none; }}
-                .form-control:focus {{ border-color: #666666; }}
-                .modal-actions {{ margin-top: 25px; display: flex; gap: 10px; }}
-                .btn-secondary {{ background: transparent; color: #888888; border: 1px solid #333333; }}
-                .btn-secondary:hover {{ color: #FFFFFF; border-color: #555555; }}
-                @keyframes shake {{
-                    0% {{ transform: translate(1px, 1px) rotate(0deg); }}
-                    15% {{ transform: translate(-3px, -1px) rotate(-1deg); }}
-                    30% {{ transform: translate(2px, 2px) rotate(1deg); }}
-                    45% {{ transform: translate(-1px, -2px) rotate(-1deg); }}
-                    60% {{ transform: translate(3px, 1px) rotate(0deg); }}
-                    80% {{ transform: translate(-2px, 2px) rotate(1deg); }}
-                    100% {{ transform: translate(1px, -1px) rotate(0deg); }}
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h2>BLIND BOX</h2>
-                <div class="subtitle">智慧市集・限量校園盲盒</div>
-                <div class="box-display" id="blindBox"><div class="box-icon">?</div></div>
-                <div class="price-tag">$150 / 次</div>
-                <button class="btn" id="openPayBtn">購買盲盒</button>
+        <html>
+        <body style="background:#f8f9fa; display:flex; justify-content:center; align-items:center;">
+            <div style="background:#111; color:#fff; padding:40px; border-radius:20px; text-align:center; width:300px;">
+                <h3>CAMPUS BLIND BOX</h3>
+                <h1 style="margin:20px 0; font-size:60px;">?</h1>
+                <button onclick="alert('✨ 恭喜抽中：{random.choice(prizes)}！')" style="padding:10px 20px; background:#fff; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">購買盲盒 ($150)</button>
             </div>
-            <div class="modal-overlay" id="payModal">
-                <div class="modal">
-                    <div class="modal-title">CREDIT CARD</div>
-                    <form id="paymentForm" onsubmit="handlePayment(event)">
-                        <div class="form-group">
-                            <label>卡號</label>
-                            <input type="text" class="form-control" placeholder="•••• •••• •••• ••••" required>
-                        </div>
-                        <div class="modal-actions">
-                            <button type="button" class="btn btn-secondary" id="closePayBtn">取消</button>
-                            <button type="submit" class="btn">安全支付 $150</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            <script>
-                const openPayBtn = document.getElementById('openPayBtn');
-                const closePayBtn = document.getElementById('closePayBtn');
-                const payModal = document.getElementById('payModal');
-                const blindBox = document.getElementById('blindBox');
-                const prizePool = {prizes};
-
-                openPayBtn.addEventListener('click', () => payModal.classList.add('active'));
-                closePayBtn.addEventListener('click', () => payModal.classList.remove('active'));
-
-                function handlePayment(event) {{
-                    event.preventDefault();
-                    payModal.classList.remove('active');
-                    blindBox.classList.add('shake');
-                    setTimeout(() => {{
-                        blindBox.classList.remove('shake');
-                        const randomPrize = prizePool[Math.floor(Math.random() * prizePool.length)];
-                        alert('✨ 支付成功！\\n\\n恭喜您幸運抽中：\\n【' + randomPrize + '】\\n\\n我們將透過您的校園學號聯絡發貨，請留意通知！');
-                    }}, 1200);
-                }}
-            </script>
         </body>
         </html>
         """
-        components.html(blind_box_html, height=520, scrolling=False)
+        components.html(blind_box_html, height=350)
