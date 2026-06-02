@@ -137,9 +137,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 0. 地理與模擬地圖大數據庫
+# 0. 地理與大數據基礎結構 (22個一級行政區 + 各行政區精準對應鄉鎮市區)
 # ==========================================
-DB_NAME = 'streamlit_campus_market_v112_delete_product.db'
+DB_NAME = 'streamlit_campus_market_v114_giant_taiwan_gps.db'
 
 CAMPUS_TYPE_MAP = {
     "公立學校": [
@@ -175,13 +175,49 @@ CAMPUS_TYPE_MAP = {
     ]
 }
 
-TW_CITIES = {
-    "雲林縣": {"斗六市": ["雲科大店 (11342)", "鎮南店 (15943)", "成功店 (16230)"],
-               "虎尾鎮": ["虎科大店 (18321)", "白宮店 (12209)"]},
-    "台北市": {"大安區": ["台大店 (10234)", "大安捷運店 (13579)"], "信義區": ["市政府店 (14920)", "台北101店 (15560)"]},
-    "台中市": {"西屯區": ["逢甲店 (12930)", "新光三越店 (17432)"], "北區": ["一中店 (18302)", "中友店 (19921)"]},
-    "台南市": {"東區": ["成功大學店 (16422)", "南紡店 (12042)"], "永康區": ["南台科大店 (15302)"]}
+# 基礎地理骨架
+RAW_CITIES_STRUCTURE = {
+    "臺北市": ["大安區", "信義區", "文山區", "士林區"],
+    "新北市": ["板橋區", "淡水區", "新莊區", "三峽區"],
+    "桃園市": ["中壢區", "桃園區", "龜山區", "八德區"],
+    "臺中市": ["西屯區", "北區", "南區", "沙鹿區"],
+    "臺南市": ["東區", "永康區", "中西區", "安南區"],
+    "高雄市": ["三民區", "鼓山區", "楠梓區", "苓雅區"],
+    "基隆市": ["仁愛區", "中正區"],
+    "新竹市": ["東區", "北區"],
+    "嘉義市": ["西區", "東區"],
+    "新竹縣": ["竹北市", "竹東鎮"],
+    "苗栗縣": ["苗栗市", "頭份市"],
+    "彰化縣": ["彰化市", "員林市"],
+    "南投縣": ["埔里鎮", "南投市"],
+    "雲林縣": ["斗六市", "虎尾鎮"],
+    "嘉義縣": ["民雄鄉", "太保市"],
+    "屏東縣": ["內埔鄉", "屏東市"],
+    "宜蘭縣": ["宜蘭市", "羅東鎮"],
+    "花蓮縣": ["壽豐鄉", "花蓮市"],
+    "臺東縣": ["臺東市", "卑南鄉"],
+    "澎湖縣": ["馬公市", "西嶼鄉"],
+    "金門縣": ["金寧鄉", "金城鎮"],
+    "連江縣": ["南竿鄉", "北竿鄉"]
 }
+
+# 🏪 利用演算法快速動態大量增殖豐富的真實感超商資料，避免硬編碼導致程式碼爆炸
+TW_CITIES = {}
+random.seed(42)  # 固定隨機碼，確保每次重整網頁時看到的超商清單相同
+keywords = ["大學", "站前", "捷運", "校園", "新光", "中正", "中山", "成功", "中央", "體育館", "圖書館", "繁榮", "市府",
+            "榮譽", "新世紀", "公園", "科技園區", "總部", "文化", "樂活"]
+
+for city, dists in RAW_CITIES_STRUCTURE.items():
+    TW_CITIES[city] = {}
+    for dist in dists:
+        # 每個區域隨機自動生出 4~6 間涵蓋各種後綴與六碼代號的真實門市資料
+        store_count = random.randint(4, 6)
+        store_list = []
+        for i in range(store_count):
+            kw = keywords[(len(city) + len(dist) + i * 7) % len(keywords)]
+            code = random.randint(100000, 299999)
+            store_list.append(f"{kw}{random.choice(['門市', '店', '二店', '卓越店'])} ({code})")
+        TW_CITIES[city][dist] = sorted(store_list)
 
 YUNTECH_ALL_DEPTS = ["不限科系/共同通識核心", "機械工程系", "電機工程系", "電子工程系", "資訊工程系", "營建工程系",
                      "工業設計系", "視覺傳達設計系", "數位媒體設計系", "企業管理系", "資訊管理系", "應用外語系"]
@@ -367,7 +403,6 @@ else:
         st.markdown("### 📊 我的交易與物資清單")
 
         conn = sqlite3.connect(DB_NAME)
-        # 讀取「上架中」商品（供同學自主下架）
         my_selling = pd.read_sql_query("SELECT id, name, price FROM products WHERE seller_id = ? AND status = '上架中'",
                                        conn, params=(current_student,))
         my_sales = pd.read_sql_query(
@@ -379,7 +414,6 @@ else:
                                         conn, params=(current_student,))
         conn.close()
 
-        # ✨ 新增：自主管理下架欄位
         with st.expander(f"🏪 我正在賣的商品 ({len(my_selling)})"):
             if my_selling.empty:
                 st.caption("目前沒有在售物品。")
@@ -390,7 +424,6 @@ else:
                         st.markdown(f"**{r['name']}**<br><small style='color:green;'>售價: ${r['price']:.0f}</small>",
                                     unsafe_allow_html=True)
                     with col_pbtn:
-                        # 下架執行按鈕
                         if st.button("🛑 下架", key=f"del_{r['id']}", use_container_width=True, type="secondary"):
                             conn = sqlite3.connect(DB_NAME)
                             conn.execute("UPDATE products SET status = '已下架' WHERE id = ?", (r['id'],))
@@ -460,7 +493,7 @@ else:
     st.write("---")
 
     # ------------------------------------------
-    # 功能 1: 探索二手市集
+    # 功能 1: 探索二手市集 (動態載入全台 22 縣市真實感超商清單)
     # ------------------------------------------
     if st.session_state.current_menu == "探索二手市集":
         st.subheader("🪐 全國二手物資流通池")
@@ -519,9 +552,10 @@ else:
                 st.markdown("##### 📍 蝦皮式 GPS 電子地圖模擬選店")
                 chain_choice = st.radio("選擇目標超商系統", ["7-11", "全家", "萊爾富", "OK"], horizontal=True)
 
+                # 從大數據生成清單中抽取
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    sel_city = st.selectbox("選擇縣市", list(TW_CITIES.keys()))
+                    sel_city = st.selectbox("選擇縣市", sorted(list(TW_CITIES.keys())))
                 with c2:
                     sel_dist = st.selectbox("選擇地區", list(TW_CITIES[sel_city].keys()))
                 with c3:
