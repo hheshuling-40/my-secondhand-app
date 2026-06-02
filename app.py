@@ -68,19 +68,6 @@ st.markdown("""
         font-size: 14px;
         margin-top: 5px;
     }
-    .shopee-gps-btn {
-        background: linear-gradient(135deg, #FF5722 0%, #ff4500 100%) !important;
-        color: #ffffff !important;
-        font-weight: 600 !important;
-        border-radius: 12px !important;
-        text-align: center;
-        padding: 12px;
-        display: block;
-        text-decoration: none;
-        box-shadow: 0 4px 12px rgba(255, 87, 34, 0.2);
-        font-size: 14px;
-        margin: 10px 0;
-    }
     .stButton>button {
         height: 60px !important;
         font-size: 14px !important;
@@ -152,7 +139,7 @@ st.markdown("""
 # ==========================================
 # 0. 地理與模擬地圖大數據庫
 # ==========================================
-DB_NAME = 'streamlit_campus_market_v111_gps_shipping.db'
+DB_NAME = 'streamlit_campus_market_v112_delete_product.db'
 
 CAMPUS_TYPE_MAP = {
     "公立學校": [
@@ -377,19 +364,43 @@ else:
         st.metric(label="我的環保集點幣", value=f"{get_coins(current_student, current_uni)} 🪙")
 
         st.markdown("---")
-        st.markdown("### 📊 我的交易清單")
+        st.markdown("### 📊 我的交易與物資清單")
 
         conn = sqlite3.connect(DB_NAME)
+        # 讀取「上架中」商品（供同學自主下架）
+        my_selling = pd.read_sql_query("SELECT id, name, price FROM products WHERE seller_id = ? AND status = '上架中'",
+                                       conn, params=(current_student,))
         my_sales = pd.read_sql_query(
-            "SELECT name, price, status, final_trade_info FROM products WHERE seller_id = ? AND status = '已售出'",
-            conn, params=(current_student,))
+            "SELECT name, price, status, final_trade_info FROM products WHERE seller_id = ? AND status = 'Ref售出' OR (seller_id = ? AND status = '已售出')",
+            conn, params=(current_student, current_student))
         my_buys = pd.read_sql_query("SELECT name, price, university, final_trade_info FROM products WHERE buyer_id = ?",
                                     conn, params=(current_student,))
         my_vouchers = pd.read_sql_query("SELECT gift_name, code, timestamp, status FROM vouchers WHERE student_id = ?",
                                         conn, params=(current_student,))
         conn.close()
 
-        with st.expander(f"🏪 我賣出的商品 ({len(my_sales)})"):
+        # ✨ 新增：自主管理下架欄位
+        with st.expander(f"🏪 我正在賣的商品 ({len(my_selling)})"):
+            if my_selling.empty:
+                st.caption("目前沒有在售物品。")
+            else:
+                for _, r in my_selling.iterrows():
+                    col_pname, col_pbtn = st.columns([2, 1])
+                    with col_pname:
+                        st.markdown(f"**{r['name']}**<br><small style='color:green;'>售價: ${r['price']:.0f}</small>",
+                                    unsafe_allow_html=True)
+                    with col_pbtn:
+                        # 下架執行按鈕
+                        if st.button("🛑 下架", key=f"del_{r['id']}", use_container_width=True, type="secondary"):
+                            conn = sqlite3.connect(DB_NAME)
+                            conn.execute("UPDATE products SET status = '已下架' WHERE id = ?", (r['id'],))
+                            conn.commit()
+                            conn.close()
+                            st.toast(f"✅ 「{r['name']}」已成功移除！")
+                            time.sleep(0.5)
+                            st.rerun()
+
+        with st.expander(f"🤝 我已售出的商品 ({len(my_sales)})"):
             if my_sales.empty:
                 st.caption("目前尚無售出物資紀錄。")
             else:
@@ -449,7 +460,7 @@ else:
     st.write("---")
 
     # ------------------------------------------
-    # 功能 1: 探索二手市集 (引入蝦皮地圖與賣貨便動態連結網址)
+    # 功能 1: 探索二手市集
     # ------------------------------------------
     if st.session_state.current_menu == "探索二手市集":
         st.subheader("🪐 全國二手物資流通池")
@@ -484,7 +495,6 @@ else:
             st.markdown("---")
             st.markdown("#### 🤝 請買家自行選擇需要的配送方式")
 
-            # 買家自由選擇運送模式
             buyer_ship_choice = st.selectbox("請選擇您想要的配送管道",
                                              ["四大超商取貨（7-11、全家、萊爾富、OK）", "使用賣家提供的 賣貨便 / 好賣+ 網址",
                                               "預約校園面交"])
@@ -509,7 +519,6 @@ else:
                 st.markdown("##### 📍 蝦皮式 GPS 電子地圖模擬選店")
                 chain_choice = st.radio("選擇目標超商系統", ["7-11", "全家", "萊爾富", "OK"], horizontal=True)
 
-                # 模擬GPS動態下拉選擇
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     sel_city = st.selectbox("選擇縣市", list(TW_CITIES.keys()))
@@ -518,7 +527,6 @@ else:
                 with c3:
                     sel_store = st.selectbox("點選超商門市", TW_CITIES[sel_city][sel_dist])
 
-                # 統一樣式與格式輸出
                 formatted_store_info = f"[{chain_choice}] {sel_city}{sel_dist} - {sel_store}"
                 st.success(f"🎯 已鎖定配送門市格式：`{formatted_store_info}`")
 
@@ -527,7 +535,7 @@ else:
                 if b_name and b_phone:
                     final_memo_output = f"{formatted_store_info} (收件人:{b_name}, 電話:{b_phone})"
 
-            else:  # 預約校園面交
+            else:
                 meet_memo = st.text_input("填寫面交時間與地點", placeholder="例如：週三中午在生活創意大樓門口...")
                 if meet_memo:
                     final_memo_output = f"[校園面交] 約定地點：{meet_memo}"
