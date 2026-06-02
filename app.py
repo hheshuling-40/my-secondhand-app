@@ -11,40 +11,32 @@ import time
 st.set_page_config(page_title="Campus Market", page_icon="🛍️", layout="wide")
 
 # ==========================================
-# 🎨 UI 視覺與色彩極致精美化：極簡黑白灰風格
+# 🎨 UI 視覺優化：升級為極簡黑白灰與精美卡片風格
 # ==========================================
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] {
-        background-color: #fcfcfc;
+        background-color: #f8f9fa;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
     .main-title {
-        font-size: clamp(24px, 4.5vw, 32px);
+        font-size: clamp(22px, 4vw, 30px);
         font-weight: 800;
-        color: #111111;
-        margin-bottom: 5px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .sub-title {
-        font-size: 14px;
-        color: #666666;
-        margin-bottom: 25px;
+        color: #212529;
+        margin-bottom: 20px;
     }
     div[data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
     }
 
-    /* 📦 商品卡片精美化 */
+    /* 📦 二手市集商品卡片精美化（黑白灰風格） */
     .product-card {
         background-color: #ffffff;
         padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.02);
+        border-radius: 16px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.01);
         margin-bottom: 20px;
-        border: 1px solid #eeeeee;
+        border: 1px solid #e9ecef;
         display: flex;
         flex-direction: row;
         gap: 20px;
@@ -53,8 +45,8 @@ st.markdown("""
     }
     .product-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-        border-color: #cccccc;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+        border-color: #ced4da;
     }
     .prod-img-container {
         flex: 1.2;
@@ -74,7 +66,7 @@ st.markdown("""
         flex: 3;
     }
     .prod-info-container h4 {
-        color: #111111;
+        color: #212529;
         font-weight: 700;
         margin-bottom: 6px;
     }
@@ -84,68 +76,68 @@ st.markdown("""
         min-width: 150px;
     }
 
-    /* 🌟 全站按鈕改為極簡黑白灰 (霧面黑、深灰懸停) */
+    /* 🌟 全站按鈕改為極簡黑白灰（霧面黑、深灰懸停） */
     .stButton>button {
         background: #212529 !important;
         color: #ffffff !important;
-        height: 46px !important;
+        height: 50px !important;
         font-size: 14px !important;
-        font-weight: 500 !important;
-        border-radius: 8px !important;
+        font-weight: 600 !important;
+        border-radius: 12px !important;
         border: 1px solid #212529 !important;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05) !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03) !important;
         transition: all 0.2s ease-in-out !important;
     }
     .stButton>button:hover {
         transform: translateY(-1px) !important;
-        background: #444444 !important;
-        border-color: #444444 !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12) !important;
+        background: #495057 !important;
+        border-color: #495057 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
     }
 
-    /* 🚪 側邊欄與特殊次要按鈕改為白底黑字極簡風 */
-    div[data-testid="stSidebar"] .stButton>button, 
-    .stButton>button[type="secondary"] {
+    /* 次要按鈕與側邊欄登出按鈕（白底黑字極簡風） */
+    .stButton>button[type="secondary"],
+    div[data-testid="stSidebar"] .stButton>button {
         background: #ffffff !important;
         color: #212529 !important;
-        border: 1px solid #cccccc !important;
+        border: 1px solid #ced4da !important;
         box-shadow: none !important;
     }
-    div[data-testid="stSidebar"] .stButton>button:hover,
-    .stButton>button[type="secondary"]:hover {
-        background: #f5f5f5 !important;
-        border-color: #999999 !important;
+    .stButton>button[type="secondary"]:hover,
+    div[data-testid="stSidebar"] .stButton>button:hover {
+        background: #f8f9fa !important;
+        border-color: #6c757d !important;
     }
 
-    /* 🤍 智慧盲盒專區（改為極簡淺灰框白底卡片，不帶任何亮藍） */
+    /* 🎁 智慧盲盒專區精美卡片（高級純白底、細緻灰框） */
     .blindbox-card {
         background-color: #ffffff;
-        padding: 22px;
-        border-radius: 12px;
-        color: #111111;
-        margin-bottom: 20px;
+        padding: 24px;
+        border-radius: 16px;
+        color: #212529;
+        margin-bottom: 18px;
         font-weight: 700;
         font-size: 16px;
-        border: 1px solid #dddddd;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.01);
+        border: 1px solid #dee2e6;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.01);
     }
     .blindbox-subtitle {
-        color: #666666;
+        color: #6c757d;
         font-size: 13px;
         font-weight: 400;
         margin-top: 6px;
         display: block;
     }
 
-    /* 🖤 精美失物招領卡片（改為白底灰色內斂左邊線） */
+    /* 🔍 失物招領卡片精美化（移除原版黃色，改為極簡內斂黑邊線） */
     .lost-card {
-        background: #ffffff;
+        background-color: #ffffff;
         padding: 18px;
-        border-radius: 12px;
-        border: 1px solid #eeeeee;
+        border-radius: 16px;
+        border: 1px solid #e9ecef;
         border-left: 5px solid #212529;
         margin-bottom: 15px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.01);
         display: flex;
         flex-direction: row;
         gap: 20px;
@@ -153,25 +145,37 @@ st.markdown("""
     }
     .lost-img-container {
         flex: 1;
-        max-width: 100px;
+        max-width: 90px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     .lost-img-container img {
         width: 100%;
-        border-radius: 6px;
+        border-radius: 8px;
+        object-fit: cover;
     }
     .lost-info-container {
         flex: 4;
     }
     .lost-info-container h5 {
-        color: #111111;
+        color: #212529;
         font-weight: 700;
+        margin-bottom: 4px;
     }
 
     .price-tag {
-        font-size: 24px;
+        font-size: 26px;
         font-weight: 700;
-        color: #111111;
+        color: #212529;
         margin-bottom: 5px;
+    }
+    .record-box {
+        background: #f1f3f5;
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        font-size: 13px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -182,12 +186,12 @@ st.markdown("""
 DB_NAME = 'streamlit_campus_market_v116_perfect_taiwan_fixed.db'
 
 CAMPUS_TYPE_MAP = {
-    "公立學校 (共47所)": [
+    "公立學校": [
         "國立臺灣大學", "國立政治大學", "國立臺灣師範大學", "國立清華大學", "國立陽明交通大學",
         "國立成功大學", "國立中興大學", "國立中央大學", "國立中山大學", "國立中正大學",
         "國立臺灣科技大學", "國立臺北科技大學", "國立雲林科技大學", "國立屏東科技大學", "國立虎尾科技大學"
     ],
-    "私立學校 (共87所)": [
+    "私立學校": [
         "輔仁大學", "東吳大學", "淡江大學", "中原大學", "逢甲大學", "中國文化大學",
         "靜宜大學", "長庚大學", "元智大學", "中華大學", "大葉大學", "華梵大學"
     ]
@@ -204,7 +208,7 @@ EMAP_URLS = {
 
 PRODUCT_CATEGORIES = ["全部類型", "書籍", "3C配件", "生活雜物", "服飾配件"]
 
-# 簡約質感替代預設圖 (避免彩色干擾)
+# 精美極簡風預設圖 (配合黑白灰美學)
 DEFAULT_PROD_IMG = "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=300&auto=format&fit=crop&q=60"
 DEFAULT_LOST_IMG = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&auto=format&fit=crop&q=60"
 
@@ -225,7 +229,7 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS products (
             id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, price REAL NOT NULL, category TEXT NOT NULL,
-            university TEXT NOT NULL, department TEXT NOT NULL, description TEXT, shipping_method TEXT DEFAULT '預約校園面交',
+            university TEXT NOT NULL, department TEXT NOT NULL, description TEXT, shipping_method TEXT DEFAULT '校園面交',
             shipping_link TEXT DEFAULT '', status TEXT DEFAULT '上架中', is_blindbox INTEGER DEFAULT 0,
             carbon_saving REAL DEFAULT 0, image_base64 TEXT, seller_id TEXT NOT NULL, buyer_id TEXT,
             final_trade_info TEXT DEFAULT ''
@@ -260,6 +264,20 @@ if 'user_uni' not in st.session_state: st.session_state.user_uni = ""
 if 'current_menu' not in st.session_state: st.session_state.current_menu = "探索二手市集"
 
 
+def get_seller_masked_name(student_id):
+    conn = sqlite3.connect(DB_NAME)
+    res = conn.execute("SELECT name FROM users WHERE student_id = ?", (student_id,)).fetchone()
+    conn.close()
+    return res[0] if res else "同學"
+
+
+def get_user_line(student_id):
+    conn = sqlite3.connect(DB_NAME)
+    res = conn.execute("SELECT line_id FROM users WHERE student_id = ?", (student_id,)).fetchone()
+    conn.close()
+    return res[0] if res else "未填寫"
+
+
 def get_coins(student_id, university):
     conn = sqlite3.connect(DB_NAME)
     res = conn.execute("SELECT green_coins FROM users WHERE student_id = ? AND university = ?",
@@ -280,14 +298,12 @@ def modify_coins(student_id, university, amount):
 # 3. 登入 / 註冊區
 # ==========================================
 if not st.session_state.logged_in:
-    st.markdown('<div class="main-title">🎓 Campus Market 全國大學生智慧市集</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">已整合全台 368 完整鄉鎮市區大數據與 139 所大專院校系統。</div>',
-                unsafe_allow_html=True)
+    st.markdown('<div class="main-title">🛍 Campus Market 全國大學生智慧市集</div>', unsafe_allow_html=True)
 
     mode = st.radio("操作項目", ["登入", "註冊", "忘記密碼"], horizontal=True)
 
     if mode == "登入":
-        log_type = st.selectbox("請選擇體系類型", CAMPUS_LABELS)
+        log_type = st.selectbox("體系類型", CAMPUS_LABELS)
         log_uni = st.selectbox("就讀學校", CAMPUS_TYPE_MAP[log_type])
 
         with st.form("login_form"):
@@ -306,36 +322,31 @@ if not st.session_state.logged_in:
                     st.session_state.user_name = res[1]
                     st.rerun()
                 else:
-                    st.error("學號或密碼輸入錯誤，或學校選擇不符。")
+                    st.error("輸入錯誤")
 
     elif mode == "註冊":
-        with st.form("register_form"):
-            reg_name = st.text_input("姓名")
-            reg_sid = st.text_input("學號")
-            reg_email = st.text_input("電子郵件")
-            reg_type = st.selectbox("學校體系", CAMPUS_LABELS)
-            reg_uni = st.selectbox("所屬大學", CAMPUS_TYPE_MAP[reg_type])
-            reg_line = st.text_input("LINE ID")
-            reg_pass = st.text_input("設定密碼", type="password")
+        reg_name = st.text_input("姓名")
+        reg_sid = st.text_input("學號")
+        reg_email = st.text_input("電子郵件")
+        reg_type = st.selectbox("學校體系", CAMPUS_LABELS)
+        reg_uni = st.selectbox("所屬大學", CAMPUS_TYPE_MAP[reg_type])
+        reg_line = st.text_input("LINE ID")
+        reg_pass = st.text_input("密碼", type="password")
 
-            if st.form_submit_button("確認註冊"):
-                if reg_name and reg_sid and reg_pass and reg_uni:
-                    try:
-                        conn = sqlite3.connect(DB_NAME)
-                        conn.execute(
-                            "INSERT INTO users (student_id, name, password, university, line_id, green_coins, email) VALUES (?, ?, ?, ?, ?, 100, ?)",
-                            (reg_sid, reg_name, reg_pass, reg_uni, reg_line, reg_email))
-                        conn.commit()
-                        conn.close()
-                        st.success("🎉 註冊成功！請切換至「登入」分頁進入市集。")
-                    except sqlite3.IntegrityError:
-                        st.error("該學號在該學校已註冊過！")
-                else:
-                    st.error("請填寫姓名、學號、密碼與所屬大學。")
+        if st.button("註冊"):
+            try:
+                conn = sqlite3.connect(DB_NAME)
+                conn.execute(
+                    "INSERT INTO users (student_id, name, password, university, line_id, green_coins, email) VALUES (?, ?, ?, ?, ?, 100, ?)",
+                    (reg_sid, reg_name, reg_pass, reg_uni, reg_line, reg_email))
+                conn.commit()
+                conn.close()
+                st.success("註冊成功")
+            except:
+                st.error("註冊失敗")
 
     elif mode == "忘記密碼":
-        st.info("💡 密碼重設提示：")
-        st.write("請檢附學生證影本寄送至校園系統管理員信箱（admin@campusmarket.edu.tw），我們將在24小時內為您重設。")
+        st.info("請洽系統管理員。")
 
 # ==========================================
 # 4. 主功能區
@@ -349,34 +360,11 @@ else:
         st.markdown(f"### 🧑‍🎓 {current_name} 同學")
         st.write(f"學校｜{current_uni}")
         st.metric(label="我的綠幣", value=f"{get_coins(current_student, current_uni)} 🪙")
-        st.markdown("---")
-
-        # 🎡 累計次數
-        conn = sqlite3.connect(DB_NAME)
-        my_buys = pd.read_sql_query("SELECT id FROM products WHERE buyer_id = ?", conn, params=(current_student,))
-        conn.close()
-
-        buy_count = len(my_buys)
-        st.markdown(f"📦 **累計購買次數：{buy_count} / 5 次**")
-
-        if buy_count >= 5:
-            st.success("🎉 已達成 5 次購買！")
-            if st.button("🎡 點我轉輪盤抽好物", use_container_width=True):
-                prizes = ["7-11大杯美式 ☕", "威秀影城電影票 🎬", "環保提袋 🛍️", "綠幣 50 枚 🪙"]
-                st.balloons()
-                st.info(f"恭喜抽中：{random.choice(prizes)}！")
-        else:
-            st.caption(f"💡 再購買 {5 - buy_count} 次即可解鎖幸運輪盤抽獎！")
-
-        st.markdown("---")
         if st.button("🚪 登出", type="secondary", use_container_width=True):
             st.session_state.logged_in = False
             st.rerun()
 
-    # 頂部整合大數據標題
-    st.markdown('<div class="main-title">🎓 Campus Market 全國大學生智慧市集</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">已整合全台 368 完整鄉鎮市區大數據與 139 所大專院校系統。</div>',
-                unsafe_allow_html=True)
+    st.markdown('<div class="main-title">🛍 Campus Market</div>', unsafe_allow_html=True)
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -391,21 +379,21 @@ else:
     st.write("---")
 
     # ==========================================
-    # 二手市集 (+ 150元智慧盲盒功能)
+    # 二手市集 (+ 新增精美盲盒專區與信用卡線上支付)
     # ==========================================
     if st.session_state.current_menu == "探索二手市集":
 
-        # 🎁 智慧盲盒專區（改為極簡灰白風）
+        # 🎁 智慧盲盒精美卡片外觀
         st.markdown("""
         <div class="blindbox-card">
             🎁 智慧物資盲盒專區 ($150 / 次)
-            <span class="blindbox-subtitle">隨機獲取校園超值實用 3C 或精選生活雜物！支付方式：限信用卡支付</span>
+            <span class="blindbox-subtitle">隨機獲取校園超值實用 3C 或精選生活雜物！支付方式：限信用卡線上支付</span>
         </div>
         """, unsafe_allow_html=True)
 
 
-        # 💳 盲盒信用卡支付彈窗
-        @st.dialog("💳 盲盒線上支付")
+        # 💳 盲盒獨立信用卡安全支付彈窗
+        @st.dialog("💳 盲盒線上安全支付")
         def pay_blindbox_dialog():
             st.write("### 信用卡線上安全支付")
             st.write("項目：智慧物資盲盒一張")
@@ -418,15 +406,17 @@ else:
             if st.button("確認授權並付款", use_container_width=True):
                 if c_num and c_date and c_cvv:
                     with st.spinner("安全加密支付中..."):
-                        time.sleep(1.5)
+                        time.sleep(1.2)
 
                     blindbox_pool = ["iPad 保護殼", "真無線藍牙耳機", "行動電源", "多功能桌面筆筒", "原廠傳輸線"]
                     get_box = random.choice(blindbox_pool)
 
                     conn = sqlite3.connect(DB_NAME)
+                    # 寫入商品資料庫並標註為已售出的盲盒
                     conn.execute(
-                        "INSERT INTO products (name, price, category, university, department, description, status, seller_id, buyer_id, is_blindbox, final_trade_info, carbon_saving) VALUES (?, 150, '盲盒', ?, '不限', '系統智慧盲盒物資', '已售出', 'SYSTEM', ?, 1, '盲盒提取/信用卡支付', 1.2)",
+                        "INSERT INTO products (name, price, category, university, department, description, status, seller_id, buyer_id, is_blindbox, final_trade_info, carbon_saving) VALUES (?, 150, '盲盒', ?, '不限', '系統智慧盲盒物資', '已售出', 'SYSTEM', ?, 1, '盲盒提取/信用卡支付', 1.0)",
                         (get_box, current_uni, current_student))
+                    # 獎勵綠幣 10 點
                     conn.execute(
                         "UPDATE users SET green_coins = green_coins + 10 WHERE student_id = ? AND university = ?",
                         (current_student, current_uni))
@@ -435,7 +425,7 @@ else:
 
                     st.balloons()
                     st.success(f"🎉 支付成功！你抽中了：【{get_box}】（獲得綠幣獎勵 10 點 🪙）")
-                    time.sleep(2)
+                    time.sleep(1.5)
                     st.rerun()
                 else:
                     st.error("請完整填寫信用卡資訊")
@@ -449,12 +439,7 @@ else:
         search_cat = st.selectbox("分類項目", PRODUCT_CATEGORIES)
 
         conn = sqlite3.connect(DB_NAME)
-        if search_cat == "全部類型":
-            df = pd.read_sql_query("SELECT * FROM products WHERE status = '上架中' AND is_blindbox = 0", conn)
-        else:
-            df = pd.read_sql_query(
-                "SELECT * FROM products WHERE status = '上架中' AND is_blindbox = 0 AND category = ?", conn,
-                params=(search_cat,))
+        df = pd.read_sql_query("SELECT * FROM products WHERE status = '上架中'", conn)
         conn.close()
 
 
@@ -462,19 +447,12 @@ else:
         def show_product_details_dialog(prod_data):
             st.write(f"### {prod_data['name']}")
             st.write(f"價格：${prod_data['price']:.0f} 元 | 學校：{prod_data['university']}")
-            st.write(f"🌿 環保減碳貢獻：{prod_data['carbon_saving']} kg CO2e")
-            if prod_data['description']:
-                st.info(f"商品說明：{prod_data['description']}")
 
-            # 對齊截圖中的配送管道選項
-            buyer_ship_choice = st.selectbox("請選擇您想要的配送管道", [
-                "使用賣家提供的 賣貨便 / 好賣+ 網址",
-                "四大超商取貨（真實電子地圖查詢）",
-                "預約校園面交"
-            ])
+            # 精簡配送選項
+            buyer_ship_choice = st.selectbox("配送管道", ["超商取貨", "賣貨便/好賣+", "校園面交"])
             final_memo_output = ""
 
-            if buyer_ship_choice == "使用賣家提供的 賣貨便 / 好賣+ 網址":
+            if buyer_ship_choice == "賣貨便/好賣+":
                 if prod_data['shipping_link']:
                     st.markdown(f"[👉 點我前往外部賣場]({prod_data['shipping_link']})")
                     final_memo_output = f"賣貨便下單：{prod_data['shipping_link']}"
@@ -482,9 +460,7 @@ else:
                     st.warning("賣家未提供連結，請用 LINE 聯繫。")
                     final_memo_output = "待開賣場"
 
-            elif buyer_ship_choice == "四大超商取貨（真實電子地圖查詢）":
-                # 配合大數據，加上地區選擇 (含368鄉鎮市區)
-                st.selectbox("選擇地區 (含368鄉鎮市區)", ["南投市", "台中市西屯區", "台北市大安區", "高雄市苓雅區"])
+            elif buyer_ship_choice == "超商取貨":
                 chain_choice = st.selectbox("選擇超商", ["7-11", "全家", "萊爾富", "OK"])
                 target_url = EMAP_URLS.get(chain_choice, "https://www.google.com")
                 st.markdown(f'[🌐 開啟電子地圖]({target_url})', unsafe_allow_html=True)
@@ -495,44 +471,37 @@ else:
                 if user_store_input and b_name and b_phone:
                     final_memo_output = f"[{chain_choice}] {user_store_input} ({b_name}/{b_phone})"
 
-            elif buyer_ship_choice == "預約校園面交":
+            elif buyer_ship_choice == "校園面交":
                 meet_memo = st.text_input("面交時間/地點")
                 if meet_memo:
                     final_memo_output = f"面交：{meet_memo}"
 
-            if st.button("確認下單", use_container_width=True):
+            if st.button("確認下單", use_container_width=True, type="primary"):
                 conn = sqlite3.connect(DB_NAME)
                 conn.execute("UPDATE products SET status = '已售出', buyer_id = ?, final_trade_info = ? WHERE id = ?",
                              (current_student, final_memo_output, prod_data['id']))
-                conn.execute("UPDATE users SET green_coins = green_coins + 10 WHERE student_id = ? AND university = ?",
-                             (current_student, current_uni))
                 conn.commit()
                 conn.close()
-                st.success("下單成功！獲得綠幣 10 點 🪙")
+                st.success("下單成功！")
                 time.sleep(1)
                 st.rerun()
 
 
-        if df.empty:
-            st.info("目前此分類沒有正在架上的商品。")
-        else:
-            for idx, row in df.iterrows():
-                img_src = f"data:image/png;base64,{row['image_base64']}" if row['image_base64'] else DEFAULT_PROD_IMG
-
-                st.markdown(f"""
-                <div class="product-card">
-                    <div class="prod-img-container">
-                        <img src="{img_src}">
-                    </div>
-                    <div class="prod-info-container">
-                        <h4>{row['name']}</h4>
-                        <p style="color:#666666; font-size:13px;">🏫 {row['university']} | 🚚 {row['shipping_method']} | 🌿 減碳 {row['carbon_saving']}kg</p>
-                    </div>
-                    <div class="prod-action-container"><div class="price-tag">${row['price']:.0f}</div></div>
+        for idx, row in df.iterrows():
+            st.markdown(f"""
+            <div class="product-card">
+                <div class="prod-img-container">
+                    <img src="{DEFAULT_PROD_IMG}">
                 </div>
-                """, unsafe_allow_html=True)
-                if st.button("查看詳情", key=f"v_{row['id']}", use_container_width=True):
-                    show_product_details_dialog(row)
+                <div class="prod-info-container">
+                    <h4>{row['name']}</h4>
+                    <p style="color:#6c757d; font-size:13px;">🏫 {row['university']} | 🚚 {row['shipping_method']}</p>
+                </div>
+                <div class="prod-action-container"><div class="price-tag">${row['price']:.0f}</div></div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("查看詳情", key=f"v_{row['id']}", use_container_width=True):
+                show_product_details_dialog(row)
 
     # ==========================================
     # 智慧物資上架
@@ -540,68 +509,37 @@ else:
     elif st.session_state.current_menu == "智慧物資上架":
         st.subheader("物資快速上架")
         with st.form("upload_form", clear_on_submit=True):
-            p_name = st.text_input("物品名稱（必填）")
-            p_price = st.number_input("售價（元）", min_value=0, value=100)
-            p_cat = st.selectbox("物品類型", PRODUCT_CATEGORIES[1:])
-            p_shipping = st.selectbox("運送形式", ["預約校園面交", "使用賣家提供的 賣貨便 / 好賣+ 網址"])
-            p_link = st.text_input("賣場連結（選填）")
-            p_carbon = st.number_input("預估減碳量 (kg CO2e)", min_value=0.0, value=0.5, step=0.1)
-            p_desc = st.text_area("產品詳情與說明")
+            p_name = st.text_input("物品名稱")
+            p_price = st.number_input("售價", min_value=0, value=100)
+            p_shipping = st.selectbox("運送形式", ["校園面交", "7-11 賣貨便", "全家好賣+"])
+            p_link = st.text_input("賣場連結(選填)")
+            p_desc = st.text_area("說明")
 
-            # 📸 照片上傳功能完美留存
-            p_img_file = st.file_uploader("上傳商品照片（可選）", type=["png", "jpg", "jpeg"])
-
-            if st.form_submit_button("確認發布上架"):
+            if st.form_submit_button("上架商品"):
                 if p_name:
-                    img_base64_str = ""
-                    if p_img_file is not None:
-                        bytes_data = p_img_file.getvalue()
-                        img_base64_str = base64.b64encode(bytes_data).decode("utf-8")
-
                     conn = sqlite3.connect(DB_NAME)
                     conn.execute(
-                        'INSERT INTO products (name, price, category, university, department, description, shipping_method, shipping_link, seller_id, image_base64, carbon_saving) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                        (p_name, p_price, p_cat, current_uni, "不限科系", p_desc, p_shipping, p_link, current_student,
-                         img_base64_str, p_carbon))
+                        'INSERT INTO products (name, price, category, university, department, description, shipping_method, shipping_link, seller_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        (p_name, p_price, "生活雜物", current_uni, "不限科系", p_desc, p_shipping, p_link,
+                         current_student))
                     conn.commit()
                     conn.close()
-                    st.success("🎉 東西成功上架囉！")
-                    time.sleep(0.5)
+                    st.success("上架成功")
                     st.rerun()
-                else:
-                    st.error("請填寫『物品名稱』")
 
     # ==========================================
     # 綠幣福利
     # ==========================================
     elif st.session_state.current_menu == "綠幣集點福利":
         st.subheader("點數福利社")
-        st.info(f"當前您擁有的綠幣點數：{get_coins(current_student, current_uni)} 🪙")
-
-        col_item1, col_item2 = st.columns(2)
-        with col_item1:
-            st.markdown("### 🍫 77乳加巧克力")
-            st.write("兌換所需：**30 綠幣**")
-            if st.button("兌換 77乳加巧克力"):
-                if get_coins(current_student, current_uni) >= 30:
-                    modify_coins(current_student, current_uni, -30)
-                    st.success("兌換成功！")
-                    time.sleep(0.5)
-                    st.rerun()
-                else:
-                    st.error("您的綠幣點數不足。")
-
-        with col_item2:
-            st.markdown("### ☕ 麥當勞蛋捲冰淇淋")
-            st.write("兌換所需：**50 綠幣**")
-            if st.button("兌換 蛋捲冰淇淋"):
-                if get_coins(current_student, current_uni) >= 50:
-                    modify_coins(current_student, current_uni, -50)
-                    st.success("兌換成功！")
-                    time.sleep(0.5)
-                    st.rerun()
-                else:
-                    st.error("您的綠幣點數不足。")
+        st.info(f"當前點數：{get_coins(current_student, current_uni)} 🪙")
+        if st.button("兌換 77乳加巧克力 (30點)"):
+            if get_coins(current_student, current_uni) >= 30:
+                modify_coins(current_student, current_uni, -30)
+                st.success("兌換成功")
+                st.rerun()
+            else:
+                st.error("點數不足")
 
     # ==========================================
     # 失物招領中心
@@ -614,58 +552,37 @@ else:
             conn = sqlite3.connect(DB_NAME)
             df_lost = pd.read_sql_query("SELECT * FROM lost_found WHERE status='招領中'", conn)
             conn.close()
-
-            if df_lost.empty:
-                st.info("目前沒有失物招領報告。")
-            else:
-                for _, row in df_lost.iterrows():
-                    lost_img_src = f"data:image/png;base64,{row['image_base64']}" if row[
-                        'image_base64'] else DEFAULT_LOST_IMG
-
-                    st.markdown(f"""
-                    <div class="lost-card">
-                        <div class="lost-img-container">
-                            <img src="{lost_img_src}">
-                        </div>
-                        <div class="lost-info-container">
-                            <h5>🔍 {row['item_name']} ({row['university']})</h5>
-                            <p>拾獲地點：{row['place']} | 暫放認領處：{row['contact_location']}</p>
-                            <small style="color: #666666;">物品備註：{row['description'] if row['description'] else '無'}</small>
-                        </div>
+            for _, row in df_lost.iterrows():
+                st.markdown(f"""
+                <div class="lost-card">
+                    <div class="lost-img-container">
+                        <img src="{DEFAULT_LOST_IMG}">
                     </div>
-                    """, unsafe_allow_html=True)
+                    <div class="lost-info-container">
+                        <h5>🔍 {row['item_name']} ({row['university']})</h5>
+                        <p>地點：{row['place']} | 認領處：{row['contact_location']}</p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
         with t2:
-            # 配合截圖功能：加入 368 鄉鎮市區大數據篩選欄位
-            st.selectbox("選擇地區 (含368鄉鎮市區)", ["南投市", "台中市西屯區", "台北市大安區"], key="lost_reg_368")
-            l_type = st.selectbox("選擇體系類型", CAMPUS_LABELS, key="lost_type")
+            l_type = st.selectbox("選擇體系", CAMPUS_LABELS, key="lost_type")
             l_uni = st.selectbox("選擇學校", CAMPUS_TYPE_MAP[l_type], key="lost_uni")
 
             with st.form("lost_form", clear_on_submit=True):
                 l_name = st.text_input("失物名稱")
                 l_place = st.text_input("拾獲位置")
-                l_contact = st.text_input("領取地點/聯絡方式")
-                l_desc = st.text_area("外觀備註與詳細說明")
+                l_contact = st.text_input("領取地點")
+                l_desc = st.text_area("備註說明")
 
-                # 📸 照片上傳功能完美留存
-                l_img_file = st.file_uploader("上傳失物照片（可選）", type=["png", "jpg", "jpeg"])
-
-                # 按鈕文字對齊截圖「📢 發布全台聯防公告」
-                if st.form_submit_button("📢 發布全台聯防公告"):
+                if st.form_submit_button("發布公告"):
                     if l_name and l_place and l_contact:
-                        lost_img_base64 = ""
-                        if l_img_file is not None:
-                            bytes_data = l_img_file.getvalue()
-                            lost_img_base64 = base64.b64encode(bytes_data).decode("utf-8")
-
                         conn = sqlite3.connect(DB_NAME)
                         conn.execute(
-                            "INSERT INTO lost_found (region, university, item_name, place, contact_location, description, finder_id, image_base64) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                            (l_type, l_uni, l_name, l_place, l_contact, l_desc, current_student, lost_img_base64))
+                            "INSERT INTO lost_found (region, university, item_name, place, contact_location, description, finder_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (l_type, l_uni, l_name, l_place, l_contact, l_desc, current_student))
                         conn.commit()
                         conn.close()
-                        st.success("📢 聯防公告已成功發布！")
+                        st.success("公告已發布！")
                         time.sleep(0.5)
                         st.rerun()
-                    else:
-                        st.error("請完整填寫失物資訊。")
