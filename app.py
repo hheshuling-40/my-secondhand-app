@@ -6,7 +6,7 @@ import pandas as pd
 from PIL import Image
 import io
 import time
-import re  # 導入正則表達式，用於超商與有效期限格式防錯
+import re  # 導入正則表達式，用於真材實料的超商數據格式防錯
 import streamlit.components.v1 as components
 
 # 設定網頁標題與網頁自動配置
@@ -311,9 +311,6 @@ if 'user_name' not in st.session_state: st.session_state.user_name = ""
 if 'user_uni' not in st.session_state: st.session_state.user_uni = ""
 if 'current_menu' not in st.session_state: st.session_state.current_menu = "探索二手市集"
 
-# 💳 建立信用卡有效期限專用的動態監聽快取狀態
-if 'expiry_input' not in st.session_state: st.session_state.expiry_input = ""
-
 
 def mask_user_name(name_str):
     if not name_str or name_str == '同學': return "同學"
@@ -613,14 +610,14 @@ else:
     with row1_c3:
         if st.button("綠幣集點福利", use_container_width=True): st.session_state.current_menu = "綠幣集點福利"
     with row1_c4:
-        if st.button("失物招領中心", use_container_width=True): st.session_state.current_menu = "失物招領中心"
+        if st.button("失物招領中心", use_container_width=True): st.session_state.current_menu = "失物招领中心"
     with row1_c5:
         if st.button("🎁 盲盒專區", use_container_width=True): st.session_state.current_menu = "盲盒專區"
 
     st.write("---")
 
     # ------------------------------------------
-    # 功能 1: 探索二手市集
+    # 功能 1: 探索二手市集 (方案 B：官方真實數據防錯對接機制)
     # ------------------------------------------
     if st.session_state.current_menu == "探索二手市集":
         st.subheader("🪐 全國二手物資流通池")
@@ -666,43 +663,6 @@ else:
 
             # 🎫 序號輸入欄位
             input_voucher_code = st.text_input("🎫 優惠券 / 免運通關券序號（選填）", placeholder="例如：DRAW-XXXXXX")
-
-            # ==================================================
-            # 💳 智慧型金流：卡片有效期限自動加「/」核心邏輯
-            # ==================================================
-            st.markdown("#### 💳 擔保支付信用卡資訊")
-            col_card1, col_card2 = st.columns([2, 1])
-            with col_card1:
-                st.text_input("卡片號碼", placeholder="XXXX XXXX XXXX XXXX", max_chars=19)
-
-            with col_card2:
-                # 讀取快取中的輸入內容
-                raw_expiry = st.text_input(
-                    "有效期限 (MM/YY) *",
-                    value=st.session_state.expiry_input,
-                    placeholder="MM/YY",
-                    max_chars=5,
-                    key="expiry_widget"
-                )
-
-                # 核心防錯：過濾掉非數字的字元
-                digits_only = re.sub(r'\D', '', raw_expiry)
-
-                # 關鍵邏輯：當輸入滿兩個數字，且目前快取還沒有斜線時，自動組裝加上 "/"
-                if len(digits_only) >= 2:
-                    formatted_expiry = f"{digits_only[:2]}/{digits_only[2:4]}"
-                else:
-                    formatted_expiry = digits_only
-
-                # 如果格式化後的結果與目前組件的值不同，立刻同步更新快取並重整畫面
-                if formatted_expiry != raw_expiry:
-                    st.session_state.expiry_input = formatted_expiry
-                    st.rerun()
-
-                # 驗證格式長度是否合規 (例如 12/28 長度必須等於 5)
-                is_expiry_valid = len(formatted_expiry) == 5
-                if formatted_expiry and not is_expiry_valid:
-                    st.caption("<small style='color:red;'>格式需為 4 位數字，如 12/28</small>", unsafe_allow_html=True)
 
             # 💡 基礎運費計算
             base_shipping_fee = 60
@@ -752,7 +712,7 @@ else:
             final_memo_output = ""
             form_valid = False  # 用於物流熔斷器
 
-            # 填寫對應的物流表單資料
+            # 填寫對應的表單資料
             if buyer_ship_choice == "使用賣家提供的 賣貨便/好賣+ 網址":
                 if prod_data['shipping_link'] and prod_data['shipping_link'].strip() != "":
                     st.markdown(f"""
@@ -785,23 +745,28 @@ else:
                                                 placeholder="例如：台大門市 或 115234")
                 user_store_final = ""
 
-                # AI 物流大師防錯格式過濾器
+                # 🚀 方案 B 的靈魂核心：智能物流防錯格式過濾器
                 if raw_store_input.strip():
                     clean_input = raw_store_input.strip()
+                    # 利用正規表達式動態抓取字串中的 5 至 6 位數連續數字（台灣四大超商標準店號格式）
                     store_code_match = re.search(r'\d{5,6}', clean_input)
+                    # 移除掉數字與無用符號，提取門市名稱
                     store_name_match = re.sub(r'\d+', '', clean_input).replace("門市", "").replace("()", "").replace(
                         "（）", "").strip()
 
                     if store_code_match and len(store_name_match) >= 2:
+                        # 成功過濾並標準化真實超商格式
                         user_store_final = f"[{chain_choice}] {store_name_match}門市 (店號: {store_code_match.group()})"
                         st.success(f"⚡ **AI 真實物流防錯校正成功：** `{user_store_final}`")
                         form_valid = True
                     elif store_code_match:
+                        # 只有輸入店號
                         user_store_final = f"[{chain_choice}] 未知門市 (店號: {store_code_match.group()})"
                         st.warning(
                             f"⚠️ 已偵測到真實店號 `{store_code_match.group()}`，建議連同「門市名稱」一起打更安全喔！")
                         form_valid = True
                     elif len(clean_input) >= 2:
+                        # 只有輸入店名
                         user_store_final = f"[{chain_choice}] {clean_input}門市 (店號: 待補)"
                         st.warning(f"⚠️ 已收到門市名稱 `{clean_input}`，但缺少 5~6 位數字店號，可能導致賣家寄件時混淆。")
                         form_valid = True
@@ -821,10 +786,9 @@ else:
 
             st.write("---")
 
-            # 🚀 熔斷阻擋機制：除了超商物流必須合法外，有效期限也必須完整輸入（長度=5），才會啟用下單按鈕
-            button_disabled = not (form_valid and is_expiry_valid)
-
-            if st.button("🛒 確認付費並送出訂單", use_container_width=True, type="primary", disabled=button_disabled):
+            # 🚀 熔斷阻擋機制：若表單未通過嚴格格式篩選，下單按鈕將鎖死(Disabled)
+            if st.button("🛒 確認付費並送出訂單", use_container_width=True, type="primary", disabled=not form_valid):
+                # 扣除/標記狀態並核銷優惠券
                 conn = sqlite3.connect(DB_NAME)
                 if voucher_db_id:
                     conn.execute("UPDATE vouchers SET status = '已使用' WHERE id = ?", (voucher_db_id,))
@@ -839,8 +803,9 @@ else:
 
                 st.success("🎉 下單成功！系統已安全儲存此筆訂單！此善舉已計入活躍滿額抽獎進度。")
 
-                # 重設有效期限快取狀態
-                st.session_state.expiry_input = ""
+                # 自動發送郵件通知（串接您的郵件伺服器）
+                # 這裡可補上 send_real_email 函式
+
                 time.sleep(1.0)
                 st.rerun()
 
