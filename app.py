@@ -69,17 +69,16 @@ st.markdown("""
         margin-top: 5px;
     }
     .emap-btn {
-        background: linear-gradient(135deg, #ff6b6b 0%, #fa5252 100%) !important;
+        background: linear-gradient(135deg, #212529 0%, #343a40 100%) !important;
         color: #ffffff !important;
         font-weight: 600 !important;
         border-radius: 8px !important;
         text-align: center;
-        padding: 8px 12px;
+        padding: 8px 16px;
         display: inline-block;
         text-decoration: none;
         font-size: 13px;
-        margin-bottom: 15px;
-        box-shadow: 0 2px 6px rgba(250, 82, 82, 0.2);
+        margin-bottom: 10px;
     }
     .stButton>button {
         height: 60px !important;
@@ -488,7 +487,7 @@ else:
         conn.close()
 
 
-        @st.dialog("🔍 商品完整詳情與敲定交易方式")
+        @st.dialog("🔍 商品詳情與下單")
         def show_product_details_dialog(prod_data):
             st.write(f"### {prod_data['name']}")
             if prod_data['image_base64']:
@@ -502,66 +501,61 @@ else:
                 st.write(f"🚚 **原定寄送：** {prod_data['shipping_method']}")
                 st.write(f"👤 **認證賣家：** {get_seller_masked_name(prod_data['seller_id'])} 同學")
 
-            st.info(f"💡 **商品完整描述：**\n{prod_data['description']}")
-
+            st.info(f"💡 **商品描述：**\n{prod_data['description']}")
             st.markdown("---")
-            st.markdown("#### 🤝 請買家自行選擇需要的配送方式")
 
-            buyer_ship_choice = st.selectbox("請選擇您想要的配送管道",
-                                             ["四大超商取貨（真實電子地圖查詢）", "使用賣家提供的 賣貨便 / 好賣+ 網址",
-                                              "預約校園面交"])
+            # ✂️ 精簡優化後的配送管道選擇
+            buyer_ship_choice = st.selectbox("請選擇配送管道",
+                                             ["四大超商取貨", "使用賣家提供的 賣貨便/好賣+ 網址", "預約校園面交"])
 
             final_memo_output = ""
 
-            if buyer_ship_choice == "使用賣家提供的 賣貨便 / 好賣+ 網址":
-                st.markdown("##### 🔗 賣家預設的專屬第三方賣場連結：")
+            if buyer_ship_choice == "使用賣家提供的 賣貨便/好賣+ 網址":
                 if prod_data['shipping_link'] and prod_data['shipping_link'].strip() != "":
                     st.markdown(f"""
                     <div style="background:#eef9ff; padding:12px; border-radius:8px; border-left:4px solid #007bff; margin-bottom:10px;">
-                        🎈 賣家已建立外連賣場：<br>
-                        <a href="{prod_data['shipping_link']}" target="_blank" style="font-weight:bold; color:#007bff; text-decoration:underline;">👉 點我打開賣家專屬賣貨便賣場下單</a>
+                        <a href="{prod_data['shipping_link']}" target="_blank" style="font-weight:bold; color:#007bff; text-decoration:underline;">👉 點我打開賣家外部賣場下單</a>
                     </div>
                     """, unsafe_allow_html=True)
-                    final_memo_output = f"[賣貨便/好賣+] 買家已點擊前往外部連結：{prod_data['shipping_link']}"
+                    final_memo_output = f"[賣貨便/好賣+] 買家已導向連結：{prod_data['shipping_link']}"
                 else:
-                    st.warning("⚠️ 賣家上架時未附帶賣貨便超連結。請透過下方 LINE 聯繫賣家開單。")
-                    final_memo_output = "[賣貨便/好賣+] 待賣家提供網址"
+                    st.warning("⚠️ 賣家上架時未附連結，請透過下方 LINE 聯繫賣家開單。")
+                    final_memo_output = "[賣貨便/好賣+] 待聯絡開單"
 
-            elif buyer_ship_choice == "四大超商取貨（真實電子地圖查詢）":
-                st.markdown("##### 📍 請點擊下方開啟官方真實電子地圖查詢門市資訊：")
-                chain_choice = st.radio("選擇目標超商系統", ["7-11", "全家", "萊爾富", "OK"], horizontal=True)
+            elif buyer_ship_choice == "四大超商取貨":
+                c1, c2 = st.columns([1, 2])
+                with c1:
+                    chain_choice = st.selectbox("選擇超商", ["7-11", "全家", "萊爾富", "OK"])
+                with c2:
+                    target_url = EMAP_URLS.get(chain_choice, "https://www.google.com")
+                    st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)  # 對齊排版
+                    st.markdown(
+                        f'<a href="{target_url}" target="_blank" class="emap-btn">🌐 打開{chain_choice}電子地圖</a>',
+                        unsafe_allow_html=True)
 
-                # 🪐 動態渲染對應超商的真實官方電子地圖連結
-                target_url = EMAP_URLS.get(chain_choice, "https://www.google.com")
-                st.markdown(
-                    f'<a href="{target_url}" target="_blank" class="emap-btn">🌐 開啟 {chain_choice} 官方電子地圖查詢頁面</a>',
-                    unsafe_allow_html=True)
-
-                st.caption("💡 提示：請在打開的官方地圖查好您的「門市名稱」或「店號（如：115234）」，填寫在下方：")
-
-                user_store_input = st.text_input("請輸入您查詢到的真實門市名稱與店號 *",
-                                                 placeholder="填寫格式如：7-11台大門市(115234) 或 全家新華店")
-                b_name = st.text_input("收件人真實姓名", placeholder="請填寫證件相符姓名")
-                b_phone = st.text_input("收件人手機號碼", placeholder="例如：0912345678")
+                user_store_input = st.text_input("門市名稱與店號",
+                                                 placeholder="例如：7-11台大門市(115234) 或 全家新華店")
+                b_name = st.text_input("收件人姓名")
+                b_phone = st.text_input("收件人手機")
 
                 if user_store_input and b_name and b_phone:
-                    final_memo_output = f"[{chain_choice}] {user_store_input} (收件人:{b_name}, 電話:{b_phone})"
+                    final_memo_output = f"[{chain_choice}] {user_store_input} (姓名:{b_name}, 電話:{b_phone})"
 
-            else:
-                meet_memo = st.text_input("填寫面交時間與地點", placeholder="例如：週三中午在校園正門口...")
+            elif buyer_ship_choice == "預約校園面交":
+                meet_memo = st.text_input("面交時間與地點", placeholder="例如：週三中午在校園正門口")
                 if meet_memo:
-                    final_memo_output = f"[校園面交] 約定地點：{meet_memo}"
+                    final_memo_output = f"[校園面交] 地點：{meet_memo}"
 
             s_line = get_user_line(prod_data['seller_id'])
             st.markdown(
-                f'<a href="https://line.me/ti/p/~{s_line}" target="_blank" class="line-btn">💬 亦可私訊賣家 LINE 溝通</a>',
+                f'<a href="https://line.me/ti/p/~{s_line}" target="_blank" class="line-btn">💬 私訊賣家 LINE 溝通</a>',
                 unsafe_allow_html=True)
 
-            if st.button("🚀 確定送出訂單（不扣幣，移入雙方清單）", use_container_width=True, type="primary"):
+            if st.button("🚀 確定送出訂單", use_container_width=True, type="primary"):
                 if prod_data['seller_id'] == current_student:
                     st.error("不能購買自己上架的商品！")
                 elif final_memo_output == "":
-                    st.error("請確實填妥收件門市或面交細節資訊再送出！")
+                    st.error("請填妥配送或面交資訊再送出！")
                 else:
                     conn = sqlite3.connect(DB_NAME)
                     conn.execute(
@@ -569,8 +563,8 @@ else:
                         (current_student, final_memo_output, prod_data['id']))
                     conn.commit()
                     conn.close()
-                    st.success("🎉 訂單發送成功！格式已由系統統一標準化，快到左側「我的交易清單」查閱！")
-                    time.sleep(1.5)
+                    st.success("🎉 訂單發送成功！請至左側「我的交易清單」查閱。")
+                    time.sleep(1.2)
                     st.rerun()
 
 
