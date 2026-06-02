@@ -203,6 +203,10 @@ CAMPUS_TYPE_MAP = {
 }
 CAMPUS_LABELS = list(CAMPUS_TYPE_MAP.keys())
 
+# 攤平所有學校清單，方便失物招領使用
+ALL_UNIVERSITIES = CAMPUS_TYPE_MAP["公立學校"] + CAMPUS_TYPE_MAP["私立學校"]
+TAIWAN_REGIONS = ["北部地區", "中部地區", "南部地區", "東部地區", "離島地區"]
+
 # 100% 真實的四大超商地圖入口
 EMAP_URLS = {
     "7-11 統一超商": "https://emap.pcsc.com.tw/",
@@ -912,30 +916,48 @@ else:
                     st.button("🔒 點數不足", key=f"rew_dis_{i}", disabled=True, use_container_width=True)
 
     # ------------------------------------------
-    # 功能 4: 失物招領中心（🔥 圖片功能升級版）
+    # 功能 4: 失物招領中心（修正版：還原全國學校及區域篩選）
     # ------------------------------------------
     elif st.session_state.current_menu == "失物招領中心":
-        st.subheader("🔍 校園失物尋找與招領通報")
-        tab_list, tab_report = st.tabs(["📋 目前失物招領登記簿", "📣 拾獲失物通報登記入口"])
+        st.subheader("🔍 全國校園失物尋找與招領通報系統")
+        tab_list, tab_report = st.tabs(["📋 全國失物招領登記簿", "📣 拾獲失物通報登記入口"])
 
         with tab_list:
+            st.markdown("##### 🔍 跨校聯網篩選條件")
+            filter_c1, filter_c2 = st.columns(2)
+            with filter_c1:
+                sel_region = st.selectbox("🌍 選擇目標區域", ["全部區域"] + TAIWAN_REGIONS)
+            with filter_c2:
+                # 預設自動定位到同學就讀的學校
+                default_idx = ALL_UNIVERSITIES.index(current_uni) if current_uni in ALL_UNIVERSITIES else 0
+                sel_uni = st.selectbox("🏫 選擇特定大學", ["全部學校"] + ALL_UNIVERSITIES, index=default_idx + 1)
+
+            # 從資料庫撈取資料，並動態組裝過濾 SQL
             conn = sqlite3.connect(DB_NAME)
-            lost_df = pd.read_sql_query(
-                "SELECT id, item_name, place, contact_location, description, university, image_base64 FROM lost_found WHERE status='招領中'",
-                conn)
+            query = "SELECT id, region, university, item_name, place, contact_location, description, image_base64 FROM lost_found WHERE status='招領中'"
+            params = []
+
+            if sel_region != "全部區域":
+                query += " AND region = ?"
+                params.append(sel_region)
+            if sel_uni != "全部學校":
+                query += " AND university = ?"
+                params.append(sel_uni)
+
+            lost_df = pd.read_sql_query(query, conn, params=params)
             conn.close()
 
+            st.write("---")
             if lost_df.empty:
-                st.caption("目前校園內沒有未領取的失物登記。")
+                st.info("💡 該篩選條件下，目前沒有未領取的失物登記紀錄。")
             else:
                 for _, r in lost_df.iterrows():
-                    # 採用響應式雙欄/單欄排列卡片，有圖片時秀圖
                     st.markdown(f"""
                     <div class="lost-card-container">
                         {"<div class='prod-img-container'><img src='" + r['image_base64'] + "' style='width:100%; border-radius:12px;'></div>" if r['image_base64'] else ""}
                         <div class="prod-info-container">
                             <h4 style="margin:0 0 6px 0; color:#c25e00;">📌 {r['item_name']}</h4>
-                            <small><b>拾獲校園：</b>{r['university']} | <b>拾獲地點：</b>{r['place']}</small><br>
+                            <small><b>地區：</b>{r['region']} | <b>拾獲校園：</b>{r['university']} | <b>具體地點：</b>{r['place']}</small><br>
                             <p style="font-size:13px; margin:6px 0 0 0; color:#495057;">備註外觀：{r['description']}</p>
                             <small style="color:#744210;"><b>目前保管處：</b>{r['contact_location']}</small>
                         </div>
@@ -947,21 +969,31 @@ else:
                         conn.execute("UPDATE lost_found SET status='已領回' WHERE id=?", (r['id'],))
                         conn.commit()
                         conn.close()
-                        st.success("🎉 狀態已變更為已領回。")
+                        st.success("🎉 感謝回報！狀態已成功變更為「已領回」。")
                         time.sleep(0.5)
                         st.rerun()
 
         with tab_report:
+            st.markdown("##### 📣 請填寫拾獲物資詳細資訊（將同步至全國連線資料庫）")
             with st.form("lost_form", clear_on_submit=True):
+                rep_c1, rep_c2 = st.columns(2)
+                with rep_c1:
+                    l_region = st.selectbox("🌍 拾獲區域 *", TAIWAN_REGIONS)
+                with rep_c2:
+                    # 預設也是先選使用者自己的學校，但也允許自由切換全台學校
+                    user_default_idx = ALL_UNIVERSITIES.index(current_uni) if current_uni in ALL_UNIVERSITIES else 0
+                    l_uni = st.selectbox("🏫 拾獲學校 *", ALL_UNIVERSITIES, index=user_default_idx)
+
                 l_name = st.text_input("拾獲物品名稱 *", placeholder="例如：黑色長夾、AirPods Pro 2")
-                l_place = st.text_input("具體拾獲地點 *", placeholder="例如：大禮堂3樓女廁外長椅")
-                l_contact = st.text_input("目前暫時寄放地點 *", placeholder="例如：生輔組、自己帶回保管（附聯絡資訊）")
+                l_place = st.text_input("具體拾獲地點 *", placeholder="例如：大禮堂3樓女廁外長椅、綜合大樓B1學餐")
+                l_contact = st.text_input("目前暫時寄放/保管地點 *",
+                                          placeholder="例如：生輔組、2樓系辦公室（附自己的聯絡電話）")
                 l_desc = st.text_area("外觀備註/特徵描述", placeholder="例如：有史迪奇吊飾，內無現金有悠遊卡一張")
 
-                # 📸 新增：失物照片上傳欄位
-                l_img = st.file_uploader("📸 上傳失物真實照片 (選填，能幫助失主更快認出！)", type=["jpg", "png", "jpeg"])
+                # 📸 照片上傳欄位
+                l_img = st.file_uploader("📸 上傳失物真實照片 (選填，能大幅提升找回機率！)", type=["jpg", "png", "jpeg"])
 
-                if st.form_submit_button("發布招領通報 📢"):
+                if st.form_submit_button("發布跨校招領通報 📢"):
                     if not l_name or not l_place or not l_contact:
                         st.error("請完整填寫通報必填欄位！")
                     else:
@@ -973,12 +1005,12 @@ else:
                         conn = sqlite3.connect(DB_NAME)
                         conn.execute(
                             "INSERT INTO lost_found (region, university, item_name, place, contact_location, description, finder_id, image_base64, status) VALUES (?,?,?,?,?,?,?,?,'招領中')",
-                            ("台灣", current_uni, l_name, l_place, l_contact, l_desc, current_student, img_b64))
+                            (l_region, l_uni, l_name, l_place, l_contact, l_desc, current_student, img_b64))
                         conn.commit()
                         conn.close()
 
                         increment_mission_counter(current_student, current_uni, "report_count")
-                        st.success("🎉 成功發布公告！感謝您的熱心協助！")
+                        st.success("🎉 成功發布全國公告！感謝您的熱心協助，綠幣進度已累計！")
                         time.sleep(1.0)
                         st.rerun()
 
