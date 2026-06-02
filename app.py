@@ -48,7 +48,7 @@ DEPARTMENT_LIST = [
 # ==========================================
 def init_db():
     try:
-        conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+        conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -127,7 +127,7 @@ if 'user_uni' not in st.session_state:
 
 def login_user(student_id, password):
     try:
-        conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+        conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("SELECT university FROM users WHERE student_id = ? AND password = ?", (student_id, password))
         res = cursor.fetchone()
@@ -139,7 +139,7 @@ def login_user(student_id, password):
 
 def register_user(student_id, password, university, line_id):
     try:
-        conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+        conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO users (student_id, password, university, line_id, green_coins) VALUES (?, ?, ?, ?, 100)",
@@ -153,7 +153,7 @@ def register_user(student_id, password, university, line_id):
 
 def get_user_line(student_id):
     try:
-        conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+        conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("SELECT line_id FROM users WHERE student_id = ?", (student_id,))
         res = cursor.fetchone()
@@ -165,7 +165,7 @@ def get_user_line(student_id):
 
 def update_user_line(student_id, new_line):
     try:
-        conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+        conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("UPDATE users SET line_id = ? WHERE student_id = ?", (new_line, student_id))
         conn.commit()
@@ -177,7 +177,7 @@ def update_user_line(student_id, new_line):
 
 def get_coins(student_id):
     try:
-        conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+        conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("SELECT green_coins FROM users WHERE student_id = ?", (student_id,))
         res = cursor.fetchone()
@@ -189,7 +189,7 @@ def get_coins(student_id):
 
 def modify_coins(student_id, amount):
     try:
-        conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+        conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("UPDATE users SET green_coins = green_coins + ? WHERE student_id = ?", (amount, student_id))
         conn.commit()
@@ -226,10 +226,8 @@ if not st.session_state.logged_in:
                     st.error("❌ 學號或密碼錯誤。（提示：可使用學號 B11321123 密碼 1234 進行測試）")
 
     with auth_tab2:
-        # 註冊表單：不使用 st.form 以確保北中南東下拉連動能即時觸發
         reg_sid = st.text_input("註冊學號 *", placeholder="請輸入學號")
 
-        # 級聯選擇：先選區域，再選大學
         reg_reg = st.selectbox("選擇學校所在區域 *", list(REGION_UNIVERSITY_MAP.keys()))
         reg_uni = st.selectbox("選擇您的所屬大學 *", REGION_UNIVERSITY_MAP[reg_reg])
 
@@ -252,7 +250,7 @@ else:
     current_uni = st.session_state.user_uni
     my_line = get_user_line(current_student)
 
-    # 判斷目前使用者的學校在哪個區域，設定市集的預設選單
+    # 判斷目前使用者的學校在哪個區域
     default_region = "中部地區"
     for r, unis in REGION_UNIVERSITY_MAP.items():
         if current_uni in unis:
@@ -276,7 +274,8 @@ else:
                 st.rerun()
 
         st.write("---")
-        if st.button("🚪 登出系統", color="red"):
+        # 修正：移除不合法的 color="red" 參數，改用正確的 type="primary" 突出按鈕
+        if st.button("🚪 登出系統", type="primary"):
             st.session_state.logged_in = False
             st.session_state.student_id = ""
             st.session_state.user_uni = ""
@@ -285,12 +284,11 @@ else:
     tab1, tab2, tab3, tab4 = st.tabs(["🛍️ 全國跨校市集挖寶", "🏪 智慧快速上架", "🎰 綠幣幸運抽獎", "📋 我的交易與書單"])
 
     # ------------------------------------------
-    # TAB 1: 跨校市集挖寶 (支援北中南東區域級聯篩選)
+    # TAB 1: 跨校市集挖寶
     # ------------------------------------------
     with tab1:
         st.header("🌍 全國大學二手書交流市集")
 
-        # 頂部多條件連動篩選區
         col_f1, col_f2, col_f3, col_f4 = st.columns(4)
         with col_f1:
             search_region = st.selectbox("📍 選擇學校區域", ["全部區域"] + list(REGION_UNIVERSITY_MAP.keys()),
@@ -299,7 +297,6 @@ else:
             if search_region == "全部區域":
                 search_uni = st.selectbox("🏫 選擇大學", ["全部大學"])
             else:
-                # 取得該區域的大學，並預設選到同學自己的學校
                 available_unis = REGION_UNIVERSITY_MAP[search_region]
                 default_uni_idx = available_unis.index(current_uni) + 1 if current_uni in available_unis else 0
                 search_uni = st.selectbox("🏫 選擇大學", ["該區全部大學"] + available_unis, index=default_uni_idx)
@@ -308,14 +305,11 @@ else:
         with col_f4:
             search_cat = st.selectbox("📦 物品類型", ["全部類型", "書籍", "3C配件", "學術講義"])
 
-        # SQL 資料庫智慧動態撈取
-        conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+        conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
         query = "SELECT id, image_base64, name, price, category, university, department, description, seller_id FROM products WHERE is_blindbox = 0 AND status = '上架中'"
 
-        # 區域與學校組合邏輯篩選
         if search_region != "全部區域":
             if search_uni == "該區全部大學":
-                # 串接該區所有的大學名稱放到 SQL IN 中
                 uni_tuples = str(tuple(REGION_UNIVERSITY_MAP[search_region])).replace(',)', ')')
                 query += f" AND university IN {uni_tuples}"
             else:
@@ -350,7 +344,6 @@ else:
                         st.success("🟢 在售中")
                     st.write("---")
 
-        # 交易控制台
         st.write("### 🛒 快速結帳與議價控制台")
         col_t1, col_t2, col_t3, col_t4 = st.columns(4)
         with col_t1:
@@ -360,7 +353,7 @@ else:
 
         with col_t3:
             if st.button("🛍️ 確認原價購買", use_container_width=True):
-                conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+                conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
                 cursor = conn.cursor()
                 cursor.execute("SELECT name, seller_id, status FROM products WHERE id = ? AND is_blindbox = 0",
                                (target_id,))
@@ -391,7 +384,7 @@ else:
 
         with col_t4:
             if st.button("💬 與 AI 賣家智慧砍價", use_container_width=True):
-                conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+                conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
                 cursor = conn.cursor()
                 cursor.execute("SELECT name, price, seller_id, status FROM products WHERE id = ? AND is_blindbox = 0",
                                (target_id,))
@@ -423,7 +416,7 @@ else:
                 conn.close()
 
     # ------------------------------------------
-    # TAB 2: 智慧快速上架 (亦改為北中南東級聯選擇學校)
+    # TAB 2: 智慧快速上架
     # ------------------------------------------
     with tab2:
         st.header("🏪 教科書智慧環保上架中心")
@@ -432,7 +425,6 @@ else:
         p_name = st.text_input("書名 / 物品名稱", placeholder="例如：精簡微積分 第九版 Metric Version")
         p_price = st.number_input("欲售價格 (元)", min_value=0, value=250)
 
-        # 上架學校選擇也同步改為 區域 -> 學校
         p_reg = st.selectbox("🏫 選擇該書適用學校的區域", list(REGION_UNIVERSITY_MAP.keys()),
                              index=list(REGION_UNIVERSITY_MAP.keys()).index(default_region))
         p_uni = st.selectbox("🏫 這本書適用於哪間大學？", REGION_UNIVERSITY_MAP[p_reg])
@@ -454,7 +446,7 @@ else:
                 category, department = auto_classify_book(p_name, p_desc)
                 carbon_saving = 1200.0 + random.randint(50, 300)
 
-                conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+                conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
                 cursor = conn.cursor()
                 cursor.execute('''
                     INSERT INTO products (name, price, category, university, department, description, is_blindbox, carbon_saving, image_base64, seller_id) 
@@ -493,7 +485,7 @@ else:
         with col_g2:
             st.subheader("📦 跨校誠信知識盲盒")
             if st.button("🔮 支付 150 元開啟知識盲盒"):
-                conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+                conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT id, name, description, image_base64, seller_id, university FROM products WHERE is_blindbox = 1 AND status = '上架中'")
@@ -532,7 +524,7 @@ else:
         st.subheader("🛍️ 我成功挖寶買到的書籍 (已自動從市集下架)")
         st.caption("💡 溫馨提示：這裡可以直接隨時查詢對方的 LINE 喔！")
 
-        conn = sqlite3.connect('streamlit_national_books_v7.db', check_same_thread=False)
+        conn = sqlite3.connect('streamlit_national_books_v8.db', check_same_thread=False)
         query_buy = f'''
             SELECT p.id as 書本ID, p.name as 書名, p.price as 價格, p.university as 來源大學, 
                    p.department as 適用科系, p.seller_id as 賣家學號, u.line_id as 賣家LINE_ID
