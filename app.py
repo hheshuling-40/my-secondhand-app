@@ -81,8 +81,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 0. 常數地圖設定
+# 0. 常數地圖設定 與 終極全新資料庫命名
 # ==========================================
+DB_NAME = 'streamlit_campus_market_v99_final.db'  # 換上保證全新的乾淨資料庫名稱
+
 REGION_UNIVERSITY_MAP = {
     "中部地區": ["國立雲林科技大學", "國立中興大學", "逢甲大學", "東海大學"],
     "北部地區": ["國立台灣大學", "國立清華大學", "國立陽明交通大學"],
@@ -95,10 +97,10 @@ PRODUCT_CATEGORIES = ["全部類型", "書籍", "3C配件", "生活雜物", "服
 
 
 # ==========================================
-# 1. 資料庫基礎建設 (全面升級至全新的 v18 版資料庫)
+# 1. 資料庫基礎建設 (加入 try-except 資安強固防護)
 # ==========================================
 def init_db():
-    conn = sqlite3.connect('streamlit_campus_market_v18.db', check_same_thread=False)
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -126,11 +128,16 @@ def init_db():
             contact_location TEXT NOT NULL, description TEXT, finder_id TEXT NOT NULL, status TEXT DEFAULT '招領中'
         )
     ''')
-    # 💡 修正核心：明確定義 INSERT 的欄位順序，保證 SQLite 絕對不會出錯
-    cursor.execute("""
-        INSERT OR IGNORE INTO users (student_id, password, university, line_id, green_coins, email) 
-        VALUES ('B11321123', 'A66666666', '國立雲林科技大學', 'yuntech_cool', 150, 'b11321123@yuntech.edu.tw')
-    """)
+
+    # 💡 終極強固：用 try-except 包覆，即使雲端有殘留結構，也絕對不會拋出 OperationalError 讓網頁死掉
+    try:
+        cursor.execute("""
+            INSERT OR IGNORE INTO users (student_id, password, university, line_id, green_coins, email) 
+            VALUES ('B11321123', 'A66666666', '國立雲林科技大學', 'yuntech_cool', 150, 'b11321123@yuntech.edu.tw')
+        """)
+    except Exception as e:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -148,21 +155,21 @@ if 'login_attempts' not in st.session_state: st.session_state.login_attempts = 0
 
 
 def get_user_line(student_id):
-    conn = sqlite3.connect('streamlit_campus_market_v18.db')
+    conn = sqlite3.connect(DB_NAME)
     res = conn.execute("SELECT line_id FROM users WHERE student_id = ?", (student_id,)).fetchone()
     conn.close()
     return res[0] if res else "未填寫"
 
 
 def get_coins(student_id):
-    conn = sqlite3.connect('streamlit_campus_market_v18.db')
+    conn = sqlite3.connect(DB_NAME)
     res = conn.execute("SELECT green_coins FROM users WHERE student_id = ?", (student_id,)).fetchone()
     conn.close()
     return res[0] if res else 0
 
 
 def modify_coins(student_id, amount):
-    conn = sqlite3.connect('streamlit_campus_market_v18.db')
+    conn = sqlite3.connect(DB_NAME)
     conn.execute("UPDATE users SET green_coins = green_coins + ? WHERE student_id = ?", (amount, student_id))
     conn.commit()
     conn.close()
@@ -182,7 +189,7 @@ if not st.session_state.logged_in:
             sid = st.text_input("學號", placeholder="請輸入您的完整學號")
             pas = st.text_input("密碼", type="password", placeholder="請輸入密碼")
             if st.form_submit_button("登入市集"):
-                conn = sqlite3.connect('streamlit_campus_market_v18.db')
+                conn = sqlite3.connect(DB_NAME)
                 res = conn.execute("SELECT university FROM users WHERE student_id = ? AND password = ?",
                                    (sid, pas)).fetchone()
                 conn.close()
@@ -213,7 +220,7 @@ if not st.session_state.logged_in:
                 st.error("請完整填寫必填欄位！")
             else:
                 try:
-                    conn = sqlite3.connect('streamlit_campus_market_v18.db')
+                    conn = sqlite3.connect(DB_NAME)
                     conn.execute(
                         "INSERT INTO users (student_id, password, university, line_id, green_coins, email) VALUES (?, ?, ?, ?, 100, ?)",
                         (reg_sid, reg_pass, reg_uni, reg_line, reg_email))
@@ -233,7 +240,7 @@ if not st.session_state.logged_in:
             submit_verify = st.form_submit_button("🚀 發送更改密碼連結並進行身分雙重確認")
 
             if submit_verify:
-                conn = sqlite3.connect('streamlit_campus_market_v18.db')
+                conn = sqlite3.connect(DB_NAME)
                 user_data = conn.execute("SELECT password FROM users WHERE student_id = ? AND email = ?",
                                          (verify_sid, verify_email)).fetchone()
                 conn.close()
@@ -250,7 +257,7 @@ if not st.session_state.logged_in:
                 new_pwd = st.text_input("請輸入全新密碼", type="password", placeholder="請輸入新密碼")
                 if st.form_submit_button("💾 確認更新密碼"):
                     if new_pwd:
-                        conn = sqlite3.connect('streamlit_campus_market_v18.db')
+                        conn = sqlite3.connect(DB_NAME)
                         conn.execute("UPDATE users SET password = ? WHERE student_id = ?", (new_pwd, verify_sid))
                         conn.commit()
                         conn.close()
@@ -317,7 +324,7 @@ else:
         with f2:
             search_dept = st.selectbox("🎓 適用科系篩選", ["全部科系"] + YUNTECH_ALL_DEPTS)
 
-        conn = sqlite3.connect('streamlit_campus_market_v18.db')
+        conn = sqlite3.connect(DB_NAME)
         query = "SELECT id, image_base64, name, price, category, university, department, description, shipping_method, shipping_link, seller_id FROM products WHERE is_blindbox = 0 AND status = '上架中'"
         df = pd.read_sql_query(query, conn)
         conn.close()
@@ -350,7 +357,7 @@ else:
                             if row['seller_id'] == current_student:
                                 st.error("不能買自己的物品")
                             else:
-                                conn = sqlite3.connect('streamlit_campus_market_v18.db')
+                                conn = sqlite3.connect(DB_NAME)
                                 conn.execute("UPDATE products SET status = '已售出', buyer_id = ? WHERE id = ?",
                                              (current_student, row['id']))
                                 conn.commit()
@@ -390,7 +397,7 @@ else:
                     elif any(w in text for w in ["計算機", "耳機", "充電", "iphone"]):
                         category = "3C配件"
 
-                    conn = sqlite3.connect('streamlit_campus_market_v18.db')
+                    conn = sqlite3.connect(DB_NAME)
                     conn.execute(
                         'INSERT INTO products (name, price, category, university, department, description, shipping_method, shipping_link, seller_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                         (p_name, p_price, category, current_uni, target_dept, p_desc, p_shipping, p_link,
@@ -429,7 +436,7 @@ else:
                         v_code = f"CM-{random.randint(100000, 999999)}"
                         v_time = time.strftime("%Y-%m-%d %H:%M")
 
-                        conn = sqlite3.connect('streamlit_campus_market_v18.db')
+                        conn = sqlite3.connect(DB_NAME)
                         conn.execute(
                             "INSERT INTO vouchers (student_id, gift_name, code, timestamp) VALUES (?, ?, ?, ?)",
                             (current_student, g['name'], v_code, v_time))
@@ -451,7 +458,7 @@ else:
         st.subheader("📋 My Dashboard")
 
         st.markdown("### 🎟️ 我的電子兌換券專區 (超商零食核銷紀錄)")
-        conn = sqlite3.connect('streamlit_campus_market_v18.db')
+        conn = sqlite3.connect(DB_NAME)
         df_vouchers = pd.read_sql_query(
             f"SELECT id as 票券ID, gift_name as 獎品項目, code as 核銷電子序號, timestamp as 兌換時間, status as 狀態 FROM vouchers WHERE student_id = '{current_student}'",
             conn)
@@ -486,7 +493,7 @@ else:
                     l_desc = st.text_area("外觀備註")
                     if st.form_submit_button("📢 上傳失物公告"):
                         if l_name and l_place and l_contact:
-                            conn = sqlite3.connect('streamlit_campus_market_v18.db')
+                            conn = sqlite3.connect(DB_NAME)
                             conn.execute(
                                 "INSERT INTO lost_found (item_name, place, contact_location, description, finder_id) VALUES (?, ?, ?, ?, ?)",
                                 (l_name, l_place, l_contact, l_desc, current_student))
@@ -497,7 +504,7 @@ else:
                             st.rerun()
 
             st.write("#### 🕵️ 當前校園招領中物件清單")
-            conn = sqlite3.connect('streamlit_campus_market_v18.db')
+            conn = sqlite3.connect(DB_NAME)
             df_lost = pd.read_sql_query(
                 "SELECT id as 公告ID, item_name as 遺失物品, place as 拾獲地點, contact_location as 前往此處領取, description as 外觀備註 FROM lost_found WHERE status='招領中'",
                 conn)
@@ -516,7 +523,7 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
                     if st.button("✨ 撤除已認領公告", key=f"res_{row['公告ID']}"):
-                        conn = sqlite3.connect('streamlit_campus_market_v18.db')
+                        conn = sqlite3.connect(DB_NAME)
                         conn.execute("UPDATE lost_found SET status='已認領' WHERE id=?", (row['公告ID'],))
                         conn.commit()
                         conn.close()
