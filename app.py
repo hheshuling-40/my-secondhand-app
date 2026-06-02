@@ -1,351 +1,1041 @@
 import streamlit as st
+import sqlite3
 import random
+import base64
+import pandas as pd
+from PIL import Image
+import io
+import time
 import streamlit.components.v1 as components
 
-# 1. 網頁基本設定 (維持你原本的設定)
-st.set_page_config(page_title="My Secondhand App", page_icon="♻️", layout="centered")
+# 設定網頁標題與網頁自動配置
+st.set_page_config(page_title="Campus Market | 全國大學生智慧市集", page_icon="🛍️", layout="wide")
 
-# 2. 初始化 Session State (維持你原本儲存二手物與對話的狀態)
-if "items" not in st.session_state:
-    st.session_state.items = [
-        {"name": "舊課本", "description": "微積分課本，九成新", "price": 100, "image": None},
-        {"name": "二手吉他", "description": "入門級吉他，弦已換新", "price": 1500, "image": None}
+# ==========================================
+# 🎨 RWD 響應式視覺優化 UI
+# ==========================================
+st.markdown("""
+<style>
+    html, body, [data-testid="stAppViewContainer"] {
+        background-color: #f8f9fa;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .main-title {
+        font-size: clamp(22px, 4vw, 30px);
+        font-weight: 800;
+        color: #212529;
+        margin-bottom: 20px;
+    }
+    div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+    }
+    .product-card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 16px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        margin-bottom: 20px;
+        border: 1px solid #e9ecef;
+        display: flex;
+        flex-direction: row;
+        gap: 20px;
+        align-items: center;
+    }
+    .prod-img-container {
+        flex: 1.2;
+        min-width: 120px;
+        max-width: 200px;
+    }
+    .prod-info-container {
+        flex: 3;
+    }
+    .prod-action-container {
+        flex: 1.5;
+        text-align: right;
+        min-width: 150px;
+    }
+    .line-btn {
+        background: linear-gradient(135deg, #06C755 0%, #05b34c 100%) !important;
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        border-radius: 12px !important;
+        text-align: center;
+        padding: 10px;
+        display: block;
+        text-decoration: none;
+        box-shadow: 0 4px 12px rgba(6, 199, 85, 0.15);
+        transition: all 0.2s ease;
+        font-size: 14px;
+        margin-top: 5px;
+    }
+    .emap-btn {
+        background: linear-gradient(135deg, #212529 0%, #343a40 100%) !important;
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        text-align: center;
+        padding: 10px 0;
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        text-decoration: none;
+        font-size: 13px;
+        margin-bottom: 10px;
+    }
+    .stButton>button {
+        height: 60px !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        border-radius: 14px !important;
+        border: none !important;
+        background-color: #ffffff !important;
+        color: #495057 !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+    }
+    .stButton>button:hover {
+        background-color: #f1f3f5 !important;
+        color: #06C755 !important;
+    }
+    .lost-card {
+        background-color: #fff9db;
+        padding: 15px;
+        border-radius: 12px;
+        border-left: 5px solid #fcc419;
+        margin-bottom: 15px;
+    }
+    .price-tag {
+        font-size: 26px;
+        font-weight: 700;
+        color: #212529;
+        margin-bottom: 5px;
+    }
+    .record-box {
+        background: #f1f3f5;
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        font-size: 13px;
+    }
+
+    @media (max-width: 768px) {
+        .product-card {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            padding: 15px;
+        }
+        .prod-img-container {
+            max-width: 100% !important;
+            width: 100% !important;
+            text-align: center;
+        }
+        .prod-img-container img {
+            max-height: 180px;
+            object-fit: contain;
+        }
+        .prod-info-container {
+            width: 100%;
+        }
+        .prod-action-container {
+            width: 100%;
+            text-align: left !important;
+            border-top: 1px dashed #e9ecef;
+            padding-top: 10px;
+            margin-top: 5px;
+        }
+        .stButton>button {
+            width: 100% !important;
+            height: 55px !important;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 0. 地理大數據與基礎設定
+# ==========================================
+DB_NAME = 'streamlit_campus_market_v116_perfect_taiwan_fixed.db'
+
+CAMPUS_TYPE_MAP = {
+    "公立學校": [
+        "國立臺灣大學", "國立政治大學", "國立臺灣師範大學", "國立清華大學", "國立陽明交通大學",
+        "國立成功大學", "國立中興大學", "國立中央大學", "國立中山大學", "國立中正大學",
+        "國立臺灣科技大學", "國立臺北科技大學", "國立雲林科技大學", "國立屏東科技大學", "國立虎尾科技大學",
+        "國立高雄科技大學", "國立臺北大學", "國立臺灣海洋大學", "國立彰化師範大學", "國立高雄師範大學",
+        "國立東華大學", "國立暨南國際大學", "國立臺東大學", "國立宜蘭大學", "國立聯合大學",
+        "國立臺南大學", "國立臺北教育大學", "國立臺中教育大學", "國立臺灣藝術大學", "國立臺北藝術大學",
+        "國立臺灣體育運動大學", "國立體育大學", "國立金門大學", "國立澎湖科技大學", "國立勤益科技大學",
+        "國立臺北商業大學", "國立臺中科技大學", "國立臺北護理健康大學", "國立高雄餐旅大學", "國立臺灣戲曲學院",
+        "臺北市立大學", "國立防衛大學", "國立空中大學", "高雄市立空中大學", "國立臺東專科學校",
+        "國立警察大學", "中央警察大學"
+    ],
+    "私立學校": [
+        "輔仁大學", "東吳大學", "淡江大學", "中原大學", "逢甲大學", "中國文化大學",
+        "靜宜大學", "長庚大學", "元智大學", "中華大學", "大葉大學", "華梵大學",
+        "義守大學", "銘傳大學", "實踐大學", "世新大學", "真理大學", "東海大學",
+        "高雄醫學大學", "中國醫藥大學", "中山醫學大學", "台北醫學大學", "長榮大學",
+        "南華大學", "玄奘大學", "佛光大學", "明道大學", "亞洲大學", "開南大學",
+        "台灣首府大學", "康寧大學", "大同大學", "南台科技大學", "崑山科技大學",
+        "嘉南藥理大學", "樹德科技大學", "龍華科技大學", "輔英科技大學", "明志科技大學",
+        "聖約翰科技大學", "嶺東科技大學", "中國科技大學", "中台科技大學", "台南應用科技大學",
+        "遠東科技大學", "元培醫事科技大學", "景文科技大學", "中華醫事科技大學", "萬能科技大學",
+        "建國科技大學", "高苑科技大學", "大仁科技大學", "文藻外語大學", "正修科技大學",
+        "朝陽科技大學", "弘光科技大學", "健行科技大學", "僑光科技大學", "明新科技大學",
+        "東南科技大學", "德明財經科技大學", "致理科技大學", "醒吾科技大學", "亞東科技大學",
+        "台北城市科技大學", "環球科技大學", "修平科技大學", "中華科技大學", "育達科技大學",
+        "美和科技大學", "吳鳳科技大學", "臺灣神學研究學院", "法鼓文理學院", "中信金融管理學院",
+        "馬偕醫學院", "基督書院", "台北海洋科技大學", "宏國德霖科技大學", "長庚科技大學",
+        "黎明技術學院", "東方設計大學", "南榮科技大學", "崇右影藝科技大學", "和春技術學院",
+        "大漢技術學院", "慈濟科技大學", "慈濟大學"
     ]
+}
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+CAMPUS_LABELS = list(CAMPUS_TYPE_MAP.keys())
 
-# 3. 側邊欄導覽選單 (幫你新增了最後一項：盲盒專區)
-page = st.sidebar.selectbox(
-    "選擇頁面",
-    ["首頁", "二手專區", "上傳二手物", "聊天室", "盲盒專區 ($150 / 次)"]
-)
+EMAP_URLS = {
+    "7-11": "https://emap.pcsc.com.tw/",
+    "全家": "https://www.family.com.tw/Marketing/zh/Map",
+    "萊爾富": "https://www.hilife.com.tw/storeInquiry_street.aspx",
+    "OK": "https://www.okmart.com.tw/convenient_shopSearch"
+}
 
-# ==========================================
-# 分頁 1：首頁 (文字與圖片一致)
-# ==========================================
-if page == "首頁":
-    st.title("歡迎來到二手物交換平台 👋")
-    st.write("在這裡，你可以自由分享、交換或販售你的二手物品，讓資源重獲新生！")
+YUNTECH_ALL_DEPTS = ["不限科系/共同通識核心", "機械工程系", "電機工程系", "電子工程系", "資訊工程系", "營建工程系",
+                     "工業設計系", "視覺傳達設計系", "數位媒體設計系", "企業管理系", "資訊管理系", "應用外語系"]
+PRODUCT_CATEGORIES = ["全部類型", "書籍", "3C配件", "生活雜物", "服飾配件", "體育用品", "學術講義"]
 
-    st.subheader("平台特色")
-    st.markdown("- **安全交易**：認證用戶，保障雙方權益")
-    st.markdown("- **環保永續**：減少浪費，物盡其用")
-    st.markdown("- **社群互動**：內建聊天室，溝通零距離")
 
 # ==========================================
-# 分頁 2：二手專區
+# 1. 資料庫基礎建設
 # ==========================================
-elif page == "二手專區":
-    st.title("🛍️ 二手專區")
-    st.write("看看大家都在賣什麼：")
+def init_db():
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            student_id TEXT NOT NULL, name TEXT DEFAULT '同學', password TEXT NOT NULL, university TEXT NOT NULL, 
+            line_id TEXT DEFAULT '未填寫', green_coins INTEGER DEFAULT 100, email TEXT DEFAULT '',
+            PRIMARY KEY (student_id, university)
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, price REAL NOT NULL, category TEXT NOT NULL,
+            university TEXT NOT NULL, department TEXT NOT NULL, description TEXT, shipping_method TEXT DEFAULT '校園面交',
+            shipping_link TEXT DEFAULT '', status TEXT DEFAULT '上架中', is_blindbox INTEGER DEFAULT 0,
+            carbon_saving REAL DEFAULT 0, image_base64 TEXT, seller_id TEXT NOT NULL, buyer_id TEXT,
+            final_trade_info TEXT DEFAULT ''
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS vouchers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, student_id TEXT NOT NULL, gift_name TEXT NOT NULL, 
+            code TEXT NOT NULL, status TEXT DEFAULT '未使用', timestamp TEXT NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lost_found (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, region TEXT NOT NULL, university TEXT NOT NULL,
+            item_name TEXT NOT NULL, place TEXT NOT NULL, contact_location TEXT NOT NULL, 
+            description TEXT, finder_id TEXT NOT NULL, image_base64 TEXT, status TEXT DEFAULT '招領中'
+        )
+    ''')
 
-    if not st.session_state.items:
-        st.write("目前沒有物品上架。")
-    else:
-        for idx, item in enumerate(st.session_state.items):
-            with st.container():
-                st.markdown(f"### {item['name']}")
-                st.write(f"**價格：** ${item['price']}")
-                st.write(f"**描述：** {item['description']}")
-                if item['image']:
-                    st.image(item['image'], use_container_width=True)
+    try:
+        cursor.execute("""
+            INSERT OR IGNORE INTO users (student_id, name, password, university, line_id, green_coins, email) 
+            VALUES ('A66666666', '王小明', '1234', '國立雲林科技大學', 'yuntech_cool', 150, 'a66666666@yuntech.edu.tw')
+        """)
+    except Exception as e:
+        pass
 
-                if st.button("聯絡賣家", key=f"contact_{idx}"):
-                    st.success(f"已開啟與 {item['name']} 賣家的對話通道！")
-                st.markdown("---")
+    conn.commit()
+    conn.close()
+
+
+init_db()
 
 # ==========================================
-# 分頁 3：上傳二手物
+# 2. 狀態管理與安全核心
 # ==========================================
-elif page == "上傳二手物":
-    st.title("📤 上傳二手物")
-    with st.form("upload_form", clear_on_submit=True):
-        name = st.text_input("物品名稱")
-        description = st.text_area("物品描述")
-        price = st.number_input("期望價格", min_value=0, step=10)
-        image = st.file_uploader("上傳照片", type=["jpg", "png", "jpeg"])
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if 'student_id' not in st.session_state: st.session_state.student_id = ""
+if 'user_name' not in st.session_state: st.session_state.user_name = ""
+if 'user_uni' not in st.session_state: st.session_state.user_uni = ""
+if 'current_menu' not in st.session_state: st.session_state.current_menu = "探索二手市集"
 
-        submit = st.form_submit_button("確認上傳")
-        if submit:
-            if name and description:
-                new_item = {
-                    "name": name,
-                    "description": description,
-                    "price": price,
-                    "image": image
-                }
-                st.session_state.items.append(new_item)
-                st.success(f"成功上架：{name}")
+
+def mask_user_name(name_str):
+    if not name_str or name_str == '同學': return "同學"
+    length = len(name_str)
+    if length == 2:
+        return name_str[0] + "O"
+    elif length == 3:
+        return name_str[0] + "O" + name_str[2]
+    elif length >= 4:
+        return name_str[0] + "O" + name_str[-1]
+    return name_str
+
+
+def get_seller_masked_name(student_id):
+    conn = sqlite3.connect(DB_NAME)
+    res = conn.execute("SELECT name FROM users WHERE student_id = ?", (student_id,)).fetchone()
+    conn.close()
+    return mask_user_name(res[0] if res else "同學")
+
+
+def get_user_line(student_id):
+    conn = sqlite3.connect(DB_NAME)
+    res = conn.execute("SELECT line_id FROM users WHERE student_id = ?", (student_id,)).fetchone()
+    conn.close()
+    return res[0] if res else "未填寫"
+
+
+def get_coins(student_id, university):
+    conn = sqlite3.connect(DB_NAME)
+    res = conn.execute("SELECT green_coins FROM users WHERE student_id = ? AND university = ?",
+                       (student_id, university)).fetchone()
+    conn.close()
+    return res[0] if res else 0
+
+
+def modify_coins(student_id, university, amount):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("UPDATE users SET green_coins = green_coins + ? WHERE student_id = ? AND university = ?",
+                 (amount, student_id, university))
+    conn.commit()
+    conn.close()
+
+
+# ==========================================
+# 3. 登入 / 註冊區
+# ==========================================
+if not st.session_state.logged_in:
+    st.markdown('<div class="main-title">🎓 Campus Market 全國大學生智慧市集</div>', unsafe_allow_html=True)
+
+    mode = st.radio("請選擇操作項目：", ["🔑 同學登入", "📝 新同學註冊帳號", "❓ 忘記密碼"], horizontal=True)
+
+    if mode == "🔑 同學登入":
+        log_type = st.selectbox("請選擇體系類型", CAMPUS_LABELS)
+        log_uni = st.selectbox("請選取您的就讀學校", CAMPUS_TYPE_MAP[log_type])
+
+        with st.form("login_form"):
+            sid = st.text_input("學號", placeholder="請輸入學號")
+            pas = st.text_input("密碼", type="password", placeholder="請輸入密碼")
+            if st.form_submit_button("登入市集"):
+                conn = sqlite3.connect(DB_NAME)
+                res = conn.execute(
+                    "SELECT university, name FROM users WHERE student_id = ? AND password = ? AND university = ?",
+                    (sid, pas, log_uni)).fetchone()
+                conn.close()
+                if res:
+                    st.session_state.logged_in = True
+                    st.session_state.student_id = sid
+                    st.session_state.user_uni = res[0]
+                    st.session_state.user_name = res[1]
+                    st.rerun()
+                else:
+                    st.error("❌ 學校、學號或密碼輸入錯誤，請重新確認！")
+
+    elif mode == "📝 新同學註冊帳號":
+        st.subheader("填寫校園註冊資料")
+        reg_name = st.text_input("您的真實姓名/稱呼 *")
+        reg_sid = st.text_input("註冊學號 *")
+        reg_email = st.text_input("學校聯絡電子郵件 *")
+        reg_type = st.selectbox("學校體系類型 *", CAMPUS_LABELS)
+        reg_uni = st.selectbox("所屬大學 *", CAMPUS_TYPE_MAP[reg_type])
+        reg_line = st.text_input("LINE ID *")
+        reg_pass = st.text_input("設定系統密碼 *", type="password")
+
+        if st.button("提交註冊並領取 100 幣 🪙"):
+            if not reg_name or not reg_sid or not reg_email or not reg_pass:
+                st.error("請完整填寫所有必填欄位！")
             else:
-                st.error("請填寫物品名稱與描述！")
+                try:
+                    conn = sqlite3.connect(DB_NAME)
+                    conn.execute(
+                        "INSERT INTO users (student_id, name, password, university, line_id, green_coins, email) VALUES (?, ?, ?, ?, ?, 100, ?)",
+                        (reg_sid, reg_name, reg_pass, reg_uni, reg_line, reg_email))
+                    conn.commit()
+                    conn.close()
+                    st.success("🎉 註冊成功！快切換到「同學登入」吧！")
+                except:
+                    st.error("在該校中此學號已被註冊過。")
+
+    elif mode == "❓ 忘記密碼":
+        st.info("忘記密碼功能請洽各校系統管理員。")
 
 # ==========================================
-# 分頁 4：聊天室
+# 4. 主功能區
 # ==========================================
-elif page == "聊天室":
-    st.title("💬 內建聊天室")
-    st.write("與買家/賣家即時溝通：")
+else:
+    current_student = st.session_state.student_id
+    current_uni = st.session_state.user_uni
+    current_name = st.session_state.user_name
 
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
+    with st.sidebar:
+        st.markdown("### 🧑‍🎓 攤主名片")
+        st.markdown(f"歡迎回來，**{current_name}** 同學！👋")
+        st.write(f"學校｜**{current_uni}**")
+        st.write(f"學號｜**{current_student}**")
+        st.metric(label="我的環保集點幣", value=f"{get_coins(current_student, current_uni)} 🪙")
 
-    if user_input := st.chat_input("請輸入訊息..."):
-        with st.chat_message("user"):
-            st.write(user_input)
-        st.session_state.messages.append({"role": "user", "content": user_input})
+        st.markdown("---")
+        st.markdown("### 📊 我的交易與物資清單")
 
-        reply = f"已收到您的訊息：『{user_input}』。賣家上線後會立即回覆您！"
-        with st.chat_message("assistant"):
-            st.write(reply)
-        st.session_state.messages.append({"role": "assistant", "content": reply})
+        conn = sqlite3.connect(DB_NAME)
+        my_selling = pd.read_sql_query("SELECT id, name, price FROM products WHERE seller_id = ? AND status = '上架中'",
+                                       conn, params=(current_student,))
+        my_sales = pd.read_sql_query(
+            "SELECT name, price, status, final_trade_info FROM products WHERE seller_id = ? AND (status = 'Ref售出' OR status = '已售出')",
+            conn, params=(current_student,))
+        my_buys = pd.read_sql_query("SELECT name, price, university, final_trade_info FROM products WHERE buyer_id = ?",
+                                    conn, params=(current_student,))
+        my_vouchers = pd.read_sql_query("SELECT gift_name, code, timestamp, status FROM vouchers WHERE student_id = ?",
+                                        conn, params=(current_student,))
+        conn.close()
 
-# ==========================================
-# 分頁 5：盲盒專區 ($150 / 次) —— 💡 這是新增的黑白灰極簡專區
-# ==========================================
-elif page == "盲盒專區 ($150 / 次)":
-    st.title("BLIND BOX")
+        with st.expander(f"🏪 我正在賣的商品 ({len(my_selling)})"):
+            if my_selling.empty:
+                st.caption("目前沒有在售物品。")
+            else:
+                for _, r in my_selling.iterrows():
+                    col_pname, col_pbtn = st.columns([2, 1])
+                    with col_pname:
+                        st.markdown(f"**{r['name']}**<br><small style='color:green;'>售價: ${r['price']:.0f}</small>",
+                                    unsafe_allow_html=True)
+                    with col_pbtn:
+                        if st.button("🛑 下架", key=f"del_{r['id']}", use_container_width=True, type="secondary"):
+                            conn = sqlite3.connect(DB_NAME)
+                            conn.execute("UPDATE products SET status = '已下架' WHERE id = ?", (r['id'],))
+                            conn.commit()
+                            conn.close()
+                            st.toast(f"✅ 「{r['name']}」已成功移除！")
+                            time.sleep(0.5)
+                            st.rerun()
 
-    # 抽獎的獎項庫 (可自行修改項目)
-    prizes = ["神祕二手全新品", "星巴克電子咖啡券", "平台免運券", "精美文具福袋", "復古底片相機"]
+        with st.expander(f"🤝 我已售出的商品 ({len(my_sales)})"):
+            if my_sales.empty:
+                st.caption("目前尚無售出物資紀錄。")
+            else:
+                for _, r in my_sales.iterrows():
+                    st.markdown(f"""
+                    <div class="record-box">
+                        <b>{r['name']}</b> <span style="color:green;">[{r['status']}]</span><br>
+                        金額：${r['price']:.0f}<br>
+                        🤝 交易與寄送資料：{r['final_trade_info']}
+                    </div>
+                    """, unsafe_allow_html=True)
 
-    # 利用三引號 """ 將網頁前端程式碼完全轉為字串，徹底解決 Python 認錯 CSS 的 SyntaxError 報錯
-    blind_box_html = f"""
-    <!DOCTYPE html>
-    <html lang="zh-TW">
-    <head>
-        <meta charset="UTF-8">
-        <style>
-            * {{
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            }}
-            body {{
-                background-color: #0E0E0E;
-                color: #FFFFFF;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                padding: 10px;
-            }}
-            .container {{
-                width: 100%;
-                max-width: 380px;
-                background: #151515;
-                border: 1px solid #222222;
-                padding: 40px 20px;
-                text-align: center;
-            }}
-            h2 {{
-                font-size: 1.3rem;
-                font-weight: 300;
-                letter-spacing: 5px;
-                margin-bottom: 6px;
-                color: #E0E0E0;
-            }}
-            .subtitle {{
-                font-size: 0.8rem;
-                color: #666666;
-                letter-spacing: 2px;
-                margin-bottom: 35px;
-            }}
-            .box-display {{
-                width: 130px;
-                height: 130px;
-                background: #1C1C1C;
-                border: 1px solid #2C2C2C;
-                margin: 0 auto 35px auto;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                transition: transform 0.5s;
-            }}
-            .box-display.shake {{
-                animation: shake 0.6s ease-in-out;
-            }}
-            .box-icon {{
-                font-size: 2rem;
-                color: #444444;
-                font-weight: 300;
-            }}
-            .price-tag {{
-                font-size: 1.1rem;
-                font-weight: 400;
-                color: #999999;
-                margin-bottom: 25px;
-                letter-spacing: 1px;
-            }}
-            .btn {{
-                width: 100%;
-                padding: 14px;
-                background: #FFFFFF;
-                color: #000000;
-                border: none;
-                font-size: 0.85rem;
-                font-weight: 600;
-                letter-spacing: 3px;
-                cursor: pointer;
-                transition: background 0.2s;
-            }}
-            .btn:hover {{
-                background: #CCCCCC;
-            }}
-            /* 信用卡彈窗 */
-            .modal-overlay {{
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.9);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                opacity: 0;
-                pointer-events: none;
-                transition: opacity 0.3s;
-                z-index: 100;
-            }}
-            .modal-overlay.active {{
-                opacity: 1;
-                pointer-events: auto;
-            }}
-            .modal {{
-                background: #121212;
-                border: 1px solid #2A2A2A;
-                width: 85%;
-                max-width: 320px;
-                padding: 30px 20px;
-            }}
-            .modal-title {{
-                font-size: 0.9rem;
-                font-weight: 400;
-                letter-spacing: 2px;
-                margin-bottom: 25px;
-                color: #CCCCCC;
-                text-align: center;
-            }}
-            .form-group {{
-                margin-bottom: 16px;
-                text-align: left;
-            }}
-            .form-group label {{
-                display: block;
-                font-size: 0.7rem;
-                color: #666666;
-                margin-bottom: 6px;
-                letter-spacing: 1px;
-            }}
-            .form-control {{
-                width: 100%;
-                padding: 10px;
-                background: #1A1A1A;
-                border: 1px solid #2A2A2A;
-                color: #FFFFFF;
-                font-size: 0.85rem;
-                outline: none;
-            }}
-            .form-control:focus {{
-                border-color: #555555;
-            }}
-            .form-row {{
-                display: flex;
-                gap: 10px;
-            }}
-            .modal-actions {{
-                margin-top: 25px;
-                display: flex;
-                gap: 10px;
-            }}
-            .btn-secondary {{
-                background: transparent;
-                color: #666666;
-                border: 1px solid #2A2A2A;
-            }}
-            .btn-secondary:hover {{
-                color: #FFFFFF;
-                border-color: #555555;
-            }}
-            @keyframes shake {{
-                0% {{ transform: translate(1px, 1px) rotate(0deg); }}
-                15% {{ transform: translate(-3px, -1px) rotate(-1deg); }}
-                30% {{ transform: translate(2px, 2px) rotate(1deg); }}
-                45% {{ transform: translate(-1px, -2px) rotate(-1deg); }}
-                60% {{ transform: translate(3px, 1px) rotate(0deg); }}
-                80% {{ transform: translate(-2px, 2px) rotate(1deg); }}
-                100% {{ transform: translate(1px, -1px) rotate(0deg); }}
-            }}
-        </style>
-    </head>
-    <body>
+        with st.expander(f"📦 我買進的商品 ({len(my_buys)})"):
+            if my_buys.empty:
+                st.caption("目前尚無購買物資紀錄。")
+            else:
+                for _, r in my_buys.iterrows():
+                    st.markdown(f"""
+                    <div class="record-box" style="background-color:#eef9ff;">
+                        <b>{r['name']}</b><br>
+                        金額：${r['price']:.0f} | 來源：{r['university']}<br>
+                        🤝 配送方式：{r['final_trade_info']}
+                    </div>
+                    """, unsafe_allow_html=True)
 
-        <div class="container">
-            <h2>BLIND BOX</h2>
-            <div class="subtitle">限量盲盒活動</div>
-            <div class="box-display" id="blindBox">
-                <div class="box-icon">?</div>
+        with st.expander(f"🎁 我兌換的福利商品 ({len(my_vouchers)})"):
+            if my_vouchers.empty:
+                st.caption("目前尚無點心兌換紀錄。")
+            else:
+                for _, r in my_vouchers.iterrows():
+                    st.markdown(f"""
+                    <div class="record-box" style="background-color:#fff5f5; border-left: 3px solid #ff6b6b;">
+                        <b>{r['gift_name']}</b><br>
+                        <span style="color:#e64980; font-family:monospace; font-weight:bold; font-size:14px;">序號：{r['code']}</span><br>
+                        <small style="color:#868e96;">兌換時間：{r['timestamp']}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        st.markdown("---")
+        if st.button("🚪 登出市集", type="secondary", use_container_width=True):
+            st.session_state.logged_in = False
+            st.rerun()
+
+    st.markdown('<div class="main-title">🛍 全國大學生智慧市集</div>', unsafe_allow_html=True)
+    st.write("---")
+
+    # 頂部導覽按鈕列 (調整比例納入第五個按鈕)
+    row1_c1, row1_c2, row1_c3, row1_c4, row1_c5 = st.columns([1, 1, 1, 1, 1])
+    with row1_c1:
+        if st.button("探索二手市集", use_container_width=True): st.session_state.current_menu = "探索二手市集"
+    with row1_c2:
+        if st.button("智慧物資上架", use_container_width=True): st.session_state.current_menu = "智慧物資上架"
+    with row1_c3:
+        if st.button("綠幣集點福利", use_container_width=True): st.session_state.current_menu = "綠幣集點福利"
+    with row1_c4:
+        if st.button("失物招領中心", use_container_width=True): st.session_state.current_menu = "失物招領中心"
+    with row1_c5:
+        if st.button("🎁 盲盒專區", use_container_width=True): st.session_state.current_menu = "盲盒專區"
+
+    st.write("---")
+
+    # ------------------------------------------
+    # 功能 1: 探索二手市集
+    # ------------------------------------------
+    if st.session_state.current_menu == "探索二手市集":
+        st.subheader("🪐 全國二手物資流通池")
+        f1, f2 = st.columns(2)
+        with f1:
+            search_cat = st.selectbox("📦 物品分類項目", PRODUCT_CATEGORIES)
+        with f2:
+            search_dept = st.selectbox("🎓 適用科系篩選", ["全部科系"] + YUNTECH_ALL_DEPTS)
+
+        conn = sqlite3.connect(DB_NAME)
+        query = "SELECT id, image_base64, name, price, category, university, department, description, shipping_method, shipping_link, seller_id FROM products WHERE is_blindbox = 0 AND status = '上架中'"
+        params = []
+        if search_cat != "全部類型":
+            query += " AND category = ?"
+            params.append(search_cat)
+        if search_dept != "全部科系":
+            query += " AND department = ?"
+            params.append(search_dept)
+
+        df = pd.read_sql_query(query, conn, params=params)
+        conn.close()
+
+
+        @st.dialog("🔍 商品詳情與下單")
+        def show_product_details_dialog(prod_data):
+            st.write(f"### {prod_data['name']}")
+            if prod_data['image_base64']:
+                st.image(prod_data['image_base64'], use_container_width=True)
+
+            c_a, c_b = st.columns(2)
+            with c_a:
+                st.write(f"🏫 **出校園：** {prod_data['university']}")
+                st.write(f"💰 **物資售價：** ${prod_data['price']:.0f} 元")
+            with c_b:
+                st.write(f"🚚 **原定寄送：** {prod_data['shipping_method']}")
+                st.write(f"👤 **認證賣家：** {get_seller_masked_name(prod_data['seller_id'])} 同學")
+
+            st.info(f"💡 **商品描述：**\n{prod_data['description']}")
+            st.markdown("---")
+
+            buyer_ship_choice = st.selectbox("請選擇配送管道",
+                                             ["四大超商取貨", "使用賣家提供的 賣貨便/好賣+ 網址", "預約校園面交"])
+
+            final_memo_output = ""
+
+            if buyer_ship_choice == "使用賣家提供的 賣貨便/好賣+ 網址":
+                if prod_data['shipping_link'] and prod_data['shipping_link'].strip() != "":
+                    st.markdown(f"""
+                    <div style="background:#eef9ff; padding:12px; border-radius:8px; border-left:4px solid #007bff; margin-bottom:10px;">
+                        <a href="{prod_data['shipping_link']}" target="_blank" style="font-weight:bold; color:#007bff; text-decoration:underline;">👉 點我打開賣家外部賣場下單</a>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    final_memo_output = f"[賣貨便/好賣+] 買家已導向連結：{prod_data['shipping_link']}"
+                else:
+                    st.warning("⚠️ 賣家上架時未附連結，請透過下方 LINE 聯繫賣家開單。")
+                    final_memo_output = "[賣貨便/好賣+] 待聯絡開單"
+
+            elif buyer_ship_choice == "四大超商取貨":
+                c1, c2 = st.columns([1, 2])
+                with c1:
+                    chain_choice = st.selectbox("選擇超商", ["7-11", "全家", "萊爾富", "OK"])
+                with c2:
+                    target_url = EMAP_URLS.get(chain_choice, "https://www.google.com")
+                    st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+                    st.markdown(
+                        f'<a href="{target_url}" target="_blank" class="emap-btn">🌐 打開{chain_choice}電子地圖</a>',
+                        unsafe_allow_html=True)
+
+                user_store_input = st.text_input("門市名稱與店號",
+                                                 placeholder="例如：7-11台大門市(115234) 或 全家新華店")
+                b_name = st.text_input("收件人姓名")
+                b_phone = st.text_input("收件人手機")
+
+                if user_store_input and b_name and b_phone:
+                    final_memo_output = f"[{chain_choice}] {user_store_input} (姓名:{b_name}, 電話:{b_phone})"
+
+            elif buyer_ship_choice == "預約校園面交":
+                meet_memo = st.text_input("面交時間與地點", placeholder="例如：週三中午在校園正門口")
+                if meet_memo:
+                    final_memo_output = f"[校園面交] 地點：{meet_memo}"
+
+            s_line = get_user_line(prod_data['seller_id'])
+            st.markdown(
+                f'<a href="https://line.me/ti/p/~{s_line}" target="_blank" class="line-btn">💬 私訊賣家 LINE 溝通</a>',
+                unsafe_allow_html=True)
+
+            if st.button("🚀 確定送出訂單", use_container_width=True, type="primary"):
+                if prod_data['seller_id'] == current_student:
+                    st.error("不能購買自己上架的商品！")
+                elif final_memo_output == "":
+                    st.error("請填妥配送或面交資訊再送出！")
+                else:
+                    conn = sqlite3.connect(DB_NAME)
+                    conn.execute(
+                        "UPDATE products SET status = '已售出', buyer_id = ?, final_trade_info = ? WHERE id = ?",
+                        (current_student, final_memo_output, prod_data['id']))
+                    conn.commit()
+                    conn.close()
+                    st.success("🎉 訂單發送成功！請至左側「我的交易清單」查閱。")
+                    time.sleep(1.2)
+                    st.rerun()
+
+
+        if df.empty:
+            st.info("💡 目前市集商場尚無寶物在售。")
+        else:
+            for index, row in df.iterrows():
+                img_html = f"<img src='{row['image_base64']}' style='width:100%; border-radius:12px; object-fit:cover;' />" if \
+                row[
+                    'image_base64'] else "<div style='background-color:#f1f3f5;height:120px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#adb5bd;font-size:13px;'>📦 暫無商品照</div>"
+                masked_seller_name = get_seller_masked_name(row['seller_id'])
+
+                st.markdown(f"""
+                <div class="product-card">
+                    <div class="prod-img-container">{img_html}</div>
+                    <div class="prod-info-container">
+                        <h4 style="margin:0 0 8px 0; color:#212529;">{row['name']}</h4>
+                        <p style="margin:2px 0; font-size:13px; color:#6c757d;">🏫 學校：{row['university']}</p>
+                        <p style="margin:2px 0; font-size:13px; color:#6c757d;">🚚 賣家預設：{row['shipping_method']}</p>
+                        <p style="margin:8px 0 0 0; font-size:13px; color:#06C755;">👤 <b>賣家：</b>{masked_seller_name} 同學</p>
+                    </div>
+                    <div class="prod-action-container">
+                        <div class="price-tag">${row['price']:.0f}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if st.button(f"🔍 點此看詳細規格或下單流程（品名：{row['name']}）", key=f"view_{row['id']}",
+                             use_container_width=True):
+                    show_product_details_dialog(row)
+
+    # ------------------------------------------
+    # 功能 2: 智慧物資上架
+    # ------------------------------------------
+    elif st.session_state.current_menu == "智慧物資上架":
+        st.subheader("🏪 多元物資快速上架櫃檯")
+        with st.form("upload_form", clear_on_submit=True):
+            p_name = st.text_input("物品名稱", placeholder="例如：微積分課本")
+            p_price = st.number_input("欲售金額 (TWD)", min_value=0, value=100)
+            p_shipping = st.selectbox("🚚 建議運送形式", ["校園面交", "7-11 賣貨便", "全家好賣+"])
+            p_link = st.text_input("🔗 第三方賣場連結（若有，買家下單時會直接彈出網址）",
+                                   placeholder="https://myship.7-11.com.tw/...")
+            p_desc = st.text_area("物況詳細說明")
+            p_file = st.file_uploader("📸 上傳商品實體照", type=['png', 'jpg', 'jpeg'])
+
+            if st.form_submit_button("🚀 發布至校園市集"):
+                if p_name and p_desc:
+                    b64_str = ""
+                    if p_file is not None:
+                        img = Image.open(p_file).convert("RGB")
+                        img.thumbnail((300, 300))
+                        buffered = io.BytesIO()
+                        img.save(buffered, format="JPEG")
+                        b64_str = f"data:image/jpeg;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+
+                    conn = sqlite3.connect(DB_NAME)
+                    conn.execute(
+                        'INSERT INTO products (name, price, category, university, department, description, shipping_method, shipping_link, seller_id, image_base64) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        (p_name, p_price, "生活雜物", current_uni, "不限科系/共同通識核心", p_desc, p_shipping, p_link,
+                         current_student, b64_str))
+                    conn.commit()
+                    conn.close()
+                    modify_coins(current_student, current_uni, 10)
+                    st.success("🎉 上架成功！")
+                    st.rerun()
+
+    # ------------------------------------------
+    # 功能 3: 綠幣集點福利
+    # ------------------------------------------
+    elif st.session_state.current_menu == "綠幣集點福利":
+        st.subheader("🪙 環保低碳集點福利社")
+        user_coins = get_coins(current_student, current_uni)
+        st.info(f"當前可用積點： {user_coins} 🪙")
+
+        gifts = [
+            {"name": "全家 77乳加巧克力 🍫", "cost": 30},
+            {"name": "校園影印店 50元抵用券 📑", "cost": 60}
+        ]
+
+        for idx, g in enumerate(gifts):
+            st.markdown(f"""
+            <div style="background:#ffffff; padding:15px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.02); margin-bottom:12px;">
+                <h5 style="margin:0 0 5px 0;">{g['name']}</h5>
+                <p style="margin:0; color:#06C755; font-weight:bold;">所需點數：{g['cost']} 點</p>
             </div>
-            <div class="price-tag">$150 / 次</div>
-            <button class="btn" id="openPayBtn">購買</button>
-        </div>
+            """, unsafe_allow_html=True)
+            if st.button("確認兌換", key=f"g_{idx}", use_container_width=True):
+                if user_coins >= g['cost']:
+                    modify_coins(current_student, current_uni, -g['cost'])
+                    v_code = f"CM-{random.randint(100000, 999999)}"
+                    conn = sqlite3.connect(DB_NAME)
+                    conn.execute("INSERT INTO vouchers (student_id, gift_name, code, timestamp) VALUES (?, ?, ?, ?)",
+                                 (current_student, g['name'], v_code, "2026-06-02"))
+                    conn.commit()
+                    conn.close()
+                    st.balloons()
+                    st.success(f"🎉 兌換成功！序號 {v_code} 已同步存入左側「我兌換的福利商品」清單中。")
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error("點數不足")
 
-        <div class="modal-overlay" id="payModal">
-            <div class="modal">
-                <div class="modal-title">CREDIT CARD</div>
-                <form id="paymentForm" onsubmit="handlePayment(event)">
-                    <div class="form-group">
-                        <label>卡號</label>
-                        <input type="text" class="form-control" placeholder="•••• •••• •••• ••••" maxlength="19" required>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group" style="flex: 1;">
-                            <label>到期日</label>
-                            <input type="text" class="form-control" placeholder="MM/YY" maxlength="5" required>
+    # ------------------------------------------
+    # 功能 4: 失物招領中心
+    # ------------------------------------------
+    elif st.session_state.current_menu == "失物招領中心":
+        st.subheader("📍 全國大學生聯防失物招領中心")
+        m_tab1, m_tab2 = st.tabs(["🔍 招領佈告欄", "➕ 發布失物通報"])
+
+        with m_tab1:
+            sub_tab_local, sub_tab_national = st.tabs([f"🏫 本校公告 ({current_uni})", "🌐 全台跨校聯防"])
+
+            with sub_tab_local:
+                conn = sqlite3.connect(DB_NAME)
+                query_local = "SELECT id, region, university, item_name, place, contact_location, description, image_base64, finder_id FROM lost_found WHERE status='招領中' AND university=?"
+                df_local = pd.read_sql_query(query_local, conn, params=(current_uni,))
+                conn.close()
+
+                if df_local.empty:
+                    st.info(f"💡 目前 {current_uni} 暫無校內失物招領公告。")
+                else:
+                    for idx, row in df_local.iterrows():
+                        masked_finder_name = get_seller_masked_name(row['finder_id'])
+                        st.markdown(f"""
+                        <div class="lost-card" style="border-left: 5px solid #2ecc71; background-color: #fafffa;">
+                            <h5>🔍 【本校專區】{row['item_name']}</h5>
+                            <p style='margin:2px 0; font-size:13px;'>📍 <b>拾獲地點：</b>{row['place']}</p>
+                            <p style='margin:2px 0; font-size:13px; color:#e67e22;'>🏢 <b>認領位置：</b>{row['contact_location']}</p>
+                            <p style='margin:2px 0; font-size:13px; color:#7f8c8d;'>👤 <b>善心拾獲人：</b>{masked_finder_name} 同學</p>
+                            <small>備註：{row['description']}</small>
                         </div>
-                        <div class="form-group" style="flex: 1;">
-                            <label>安全碼</label>
-                            <input type="text" class="form-control" placeholder="CVC" maxlength="3" required>
+                        """, unsafe_allow_html=True)
+                        if row['image_base64']: st.image(row['image_base64'], width=220)
+                        if st.button("✨ 本校物歸原主（撤除公告）", key=f"res_local_{row['id']}",
+                                     use_container_width=True):
+                            conn = sqlite3.connect(DB_NAME)
+                            conn.execute("UPDATE lost_found SET status='已認領' WHERE id=?", (row['id'],))
+                            conn.commit()
+                            conn.close()
+                            st.success("🎉 順利撤除校內公告。")
+                            time.sleep(0.5)
+                            st.rerun()
+
+            with sub_tab_national:
+                st.write("🌐 篩選其他學校的失物看板：")
+                c_t1, c_t2 = st.columns(2)
+                with c_t1:
+                    nat_type = st.selectbox("學校體系篩選", CAMPUS_LABELS)
+                with c_t2:
+                    search_nat_uni = st.selectbox("特定學校篩選",
+                                                  ["全部學校"] + [u for u in CAMPUS_TYPE_MAP[nat_type] if
+                                                                  u != current_uni])
+
+                conn = sqlite3.connect(DB_NAME)
+                if search_nat_uni == "全部學校":
+                    placeholders = ','.join(['?'] * len(CAMPUS_TYPE_MAP[nat_type]))
+                    query_nat = f"SELECT id, region, university, item_name, place, contact_location, description, image_base64, finder_id FROM lost_found WHERE status='招領中' AND university != ? AND university IN ({placeholders})"
+                    params = [current_uni] + CAMPUS_TYPE_MAP[nat_type]
+                    df_nat = pd.read_sql_query(query_nat, conn, params=params)
+                else:
+                    query_nat = "SELECT id, region, university, item_name, place, contact_location, description, image_base64, finder_id FROM lost_found WHERE status='招領中' AND university = ?"
+                    df_nat = pd.read_sql_query(query_nat, conn, params=(search_nat_uni,))
+                conn.close()
+
+                if df_nat.empty:
+                    st.info("💡 目前所選之其他大學暫無失物招領公告。")
+                else:
+                    for idx, row in df_nat.iterrows():
+                        masked_finder_name = get_seller_masked_name(row['finder_id'])
+                        st.markdown(f"""
+                        <div class="lost-card">
+                            <h5>🔍 【外校聯防】{row['item_name']} ({row['university']})</h5>
+                            <p style='margin:2px 0; font-size:13px;'>📍 <b>拾獲地點：</b>{row['place']}</p>
+                            <p style='margin:2px 0; font-size:13px; color:#e67e22;'>🏢 <b>物資存放位置：</b>{row['contact_location']}</p>
+                            <p style='margin:2px 0; font-size:13px; color:#7f8c8d;'>👤 <b>拾獲回報：</b>{masked_finder_name} 同學</p>
+                            <small>描述：{row['description']}</small>
                         </div>
-                    </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" id="closePayBtn">取消</button>
-                        <button type="submit" class="btn">支付 $150</button>
-                    </div>
-                </form>
+                        """, unsafe_allow_html=True)
+                        if row['image_base64']: st.image(row['image_base64'], width=220)
+
+        with m_tab2:
+            st.write("➕ 請填寫失物拾獲回報表單：")
+            with st.form("lost_form", clear_on_submit=True):
+                l_name = st.text_input("遺失物名稱", placeholder="例如：黑色長夾、AirPods Pro")
+                l_place = st.text_input("在哪裡捡到的", placeholder="例如：大禮堂三樓 C302 教室")
+                l_contact = st.text_input("目前該失物暫存位置 / 認領管道",
+                                          placeholder="例如：送到生輔組 / 私訊我的 LINE")
+                l_desc = st.text_area("外觀特徵補充描述")
+                l_file = st.file_uploader("📸 遺失物佐證照", type=['png', 'jpg', 'jpeg'])
+
+                if st.form_submit_button("📢 廣播發布招領資訊"):
+                    if l_name and l_place and l_contact:
+                        lb64 = ""
+                        if l_file is not None:
+                            img = Image.open(l_file).convert("RGB")
+                            img.thumbnail((300, 300))
+                            buffered = io.BytesIO()
+                            img.save(buffered, format="JPEG")
+                            lb64 = f"data:image/jpeg;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+
+                        conn = sqlite3.connect(DB_NAME)
+                        conn.execute(
+                            "INSERT INTO lost_found (region, university, item_name, place, contact_location, description, finder_id, image_base64) VALUES (?,?,?,?,?,?,?,?)",
+                            ("台灣", current_uni, l_name, l_place, l_contact, l_desc, current_student, lb64))
+                        conn.commit()
+                        conn.close()
+                        st.success("🎉 成功發布跨校失物聯防公告！")
+                        time.sleep(0.5)
+                        st.rerun()
+
+    # ------------------------------------------
+    # 功能 5: 盲盒專區 ($150 / 次) —— 黑白灰極簡極致風
+    # ------------------------------------------
+    elif st.session_state.current_menu == "盲盒專區":
+        # 定義開獎隨機池
+        prizes = ["神祕高級大專生福袋", "星巴克 150元電子即享券", "超商免運通行證", "1TB 高速行動硬碟",
+                  "極簡黑白復古底片相機"]
+
+        # 利用多行字串將 HTML 完美傳遞，杜絕 Python 對於 CSS 的語法干擾
+        blind_box_html = f"""
+        <!DOCTYPE html>
+        <html lang="zh-TW">
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                }}
+                body {{
+                    background-color: #f8f9fa;
+                    color: #111111;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    padding: 20px 0;
+                }}
+                .container {{
+                    width: 100%;
+                    max-width: 400px;
+                    background: #111111;
+                    color: #ffffff;
+                    border-radius: 20px;
+                    padding: 40px 25px;
+                    text-align: center;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+                }}
+                h2 {{
+                    font-size: 1.5rem;
+                    font-weight: 300;
+                    letter-spacing: 6px;
+                    margin-bottom: 6px;
+                    color: #FFFFFF;
+                }}
+                .subtitle {{
+                    font-size: 0.8rem;
+                    color: #666666;
+                    letter-spacing: 2px;
+                    margin-bottom: 35px;
+                }}
+                .box-display {{
+                    width: 140px;
+                    height: 140px;
+                    background: #1A1A1A;
+                    border: 1px solid #333333;
+                    border-radius: 12px;
+                    margin: 0 auto 35px auto;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    transition: transform 0.5s;
+                }}
+                .box-display.shake {{
+                    animation: shake 0.6s ease-in-out;
+                }}
+                .box-icon {{
+                    font-size: 2.5rem;
+                    color: #555555;
+                    font-weight: 300;
+                }}
+                .price-tag {{
+                    font-size: 1.2rem;
+                    font-weight: 400;
+                    color: #CCCCCC;
+                    margin-bottom: 25px;
+                    letter-spacing: 1px;
+                }}
+                .btn {{
+                    width: 100%;
+                    padding: 14px;
+                    background: #FFFFFF;
+                    color: #000000;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                    letter-spacing: 3px;
+                    cursor: pointer;
+                    transition: background 0.2s;
+                }}
+                .btn:hover {{
+                    background: #DDDDDD;
+                }}
+                /* 信用卡金流彈窗 */
+                .modal-overlay {{
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.85);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    opacity: 0;
+                    pointer-events: none;
+                    transition: opacity 0.3s;
+                    z-index: 100;
+                }}
+                .modal-overlay.active {{
+                    opacity: 1;
+                    pointer-events: auto;
+                }}
+                .modal {{
+                    background: #1A1A1A;
+                    border: 1px solid #2C2C2C;
+                    border-radius: 16px;
+                    width: 90%;
+                    max-width: 340px;
+                    padding: 30px 20px;
+                }}
+                .modal-title {{
+                    font-size: 0.95rem;
+                    font-weight: 400;
+                    letter-spacing: 2px;
+                    margin-bottom: 25px;
+                    color: #EEEEEE;
+                    text-align: center;
+                }}
+                .form-group {{
+                    margin-bottom: 16px;
+                    text-align: left;
+                }}
+                .form-group label {{
+                    display: block;
+                    font-size: 0.7rem;
+                    color: #777777;
+                    margin-bottom: 6px;
+                    letter-spacing: 1px;
+                }}
+                .form-control {{
+                    width: 100%;
+                    padding: 11px;
+                    background: #242424;
+                    border: 1px solid #333333;
+                    border-radius: 6px;
+                    color: #FFFFFF;
+                    font-size: 0.9rem;
+                    outline: none;
+                }}
+                .form-control:focus {{
+                    border-color: #666666;
+                }}
+                .form-row {{
+                    display: flex;
+                    gap: 10px;
+                }}
+                .modal-actions {{
+                    margin-top: 25px;
+                    display: flex;
+                    gap: 10px;
+                }}
+                .btn-secondary {{
+                    background: transparent;
+                    color: #888888;
+                    border: 1px solid #333333;
+                }}
+                .btn-secondary:hover {{
+                    color: #FFFFFF;
+                    border-color: #555555;
+                }}
+                @keyframes shake {{
+                    0% {{ transform: translate(1px, 1px) rotate(0deg); }}
+                    15% {{ transform: translate(-3px, -1px) rotate(-1deg); }}
+                    30% {{ transform: translate(2px, 2px) rotate(1deg); }}
+                    45% {{ transform: translate(-1px, -2px) rotate(-1deg); }}
+                    60% {{ transform: translate(3px, 1px) rotate(0deg); }}
+                    80% {{ transform: translate(-2px, 2px) rotate(1deg); }}
+                    100% {{ transform: translate(1px, -1px) rotate(0deg); }}
+                }}
+            </style>
+        </head>
+        <body>
+
+            <div class="container">
+                <h2>BLIND BOX</h2>
+                <div class="subtitle">智慧市集・限量校園盲盒</div>
+                <div class="box-display" id="blindBox">
+                    <div class="box-icon">?</div>
+                </div>
+                <div class="price-tag">$150 / 次</div>
+                <button class="btn" id="openPayBtn">購買盲盒</button>
             </div>
-        </div>
 
-        <script>
-            const openPayBtn = document.getElementById('openPayBtn');
-            const closePayBtn = document.getElementById('closePayBtn');
-            const payModal = document.getElementById('payModal');
-            const blindBox = document.getElementById('blindBox');
+            <div class="modal-overlay" id="payModal">
+                <div class="modal">
+                    <div class="modal-title">CREDIT CARD</div>
+                    <form id="paymentForm" onsubmit="handlePayment(event)">
+                        <div class="form-group">
+                            <label>卡號</label>
+                            <input type="text" class="form-control" placeholder="•••• •••• •••• ••••" maxlength="19" required>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 1;">
+                                <label>到期日</label>
+                                <input type="text" class="form-control" placeholder="MM/YY" maxlength="5" required>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>安全碼</label>
+                                <input type="text" class="form-control" placeholder="CVC" maxlength="3" required>
+                            </div>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" class="btn btn-secondary" id="closePayBtn">取消</button>
+                            <button type="submit" class="btn">安全支付 $150</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
-            // 帶入 Python 定義的獎品陣列
-            const prizePool = {prizes};
+            <script>
+                const openPayBtn = document.getElementById('openPayBtn');
+                const closePayBtn = document.getElementById('closePayBtn');
+                const payModal = document.getElementById('payModal');
+                const blindBox = document.getElementById('blindBox');
 
-            openPayBtn.addEventListener('click', () => payModal.classList.add('active'));
-            closePayBtn.addEventListener('click', () => payModal.classList.remove('active'));
+                // 傳入 Python 宣告的隨機開獎池
+                const prizePool = {prizes};
 
-            function handlePayment(event) {{
-                event.preventDefault();
-                payModal.classList.remove('active');
-                blindBox.classList.add('shake');
+                openPayBtn.addEventListener('click', () => payModal.classList.add('active'));
+                closePayBtn.addEventListener('click', () => payModal.classList.remove('active'));
 
-                setTimeout(() => {{
-                    blindBox.classList.remove('shake');
-                    // 隨機抽選獎項
-                    const randomPrize = prizePool[Math.floor(Math.random() * prizePool.length)];
-                    alert('✨ 支付成功！\\n\\n恭喜您抽中：【' + randomPrize + '】\\n工作人員將會與您聯繫發貨事宜。');
-                }}, 1200);
-            }}
-        </script>
-    </body>
-    </html>
-    """
+                function handlePayment(event) {{
+                    event.preventDefault();
+                    payModal.classList.remove('active');
+                    blindBox.classList.add('shake');
 
-    # 渲染至網頁中
-    components.html(blind_box_html, height=500, scrolling=False)
+                    setTimeout(() => {{
+                        blindBox.classList.remove('shake');
+                        // 隨機開獎演算法
+                        const randomPrize = prizePool[Math.floor(Math.random() * prizePool.length)];
+                        alert('✨ 支付成功！\\n\\n恭喜您幸運抽中：\\n【' + randomPrize + '】\\n\\n我們將透過您的校園學號聯絡發貨，請留意通知！');
+                    }}, 1200);
+                }}
+            </script>
+        </body>
+        </html>
+        """
+
+        # 渲染極簡黑白灰 HTML
+        components.html(blind_box_html, height=520, scrolling=False)
