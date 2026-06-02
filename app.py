@@ -657,7 +657,7 @@ else:
         st.subheader("🪐 全國二手物資流通池")
         f1, f2 = st.columns(2)
         with f1:
-            search_cat = st.selectbox("📦 物品分類項目", PRODUCT_CATEGORIES)
+            search_cat = st.selectbox("📦 物品物品分類項目", PRODUCT_CATEGORIES)
         with f2:
             search_dept = st.selectbox("🎓 適用科系篩選", ["全部科系"] + YUNTECH_ALL_DEPTS)
 
@@ -895,7 +895,7 @@ else:
     # ------------------------------------------
     elif st.session_state.current_menu == "綠幣集點福利":
         st.subheader("🪙 環保綠幣福利社")
-        st.info(f"💡 您的當前帳戶餘釋： **{user_coins} 🪙**")
+        st.info(f"💡 您的當前帳戶餘額： **{user_coins} 🪙**")
 
         rewards = [
             {"name": "【全家】35元微波點心即享折價券", "cost": 150,
@@ -1021,7 +1021,7 @@ else:
                         st.rerun()
 
     # ------------------------------------------
-    # 功能 5: 盲盒專區（已對接原生 JS 達成無感即時自動空格遮罩）
+    # 功能 5: 盲盒專區（整合卡號＋有效日期雙重智慧自動遮罩）
     # ------------------------------------------
     elif st.session_state.current_menu == "盲盒專區":
         st.subheader("🎁 幸運官方盲盒抽獎池 ($150 / 次)")
@@ -1045,64 +1045,90 @@ else:
         st.info("💳 本模組已接軌線上正式安全金流：")
 
         with st.expander("📝 點此展開信用卡付款資料填寫", expanded=True):
-            st.markdown('<label style="font-size:14px;font-weight:500;color:#495057;">💳 信用卡卡號</label>',
-                        unsafe_allow_html=True)
 
-            # 透過原生 JavaScript 監聽 input 事件，完美實現打到第 4, 8, 12 位數自動補空白的效果
-            html_input_mask = """
-            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-                <input type="text" id="cc_input" placeholder="1234 1234 1234 1232" maxlength="19" style="
-                    width: 100%;
-                    padding: 12px;
-                    border-radius: 8px;
-                    border: 1px solid #dee2e6;
-                    background-color: #f8f9fa;
-                    font-size: 16px;
-                    box-sizing: border-box;
-                    outline: none;
-                " />
+            # 使用單個 HTML 元件打包「卡號」與「有效日期」的前端即時欄位監聽器
+            html_payment_mask = """
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 10px;">
+
+                <div style="flex: 2; min-width: 250px;">
+                    <label style="font-size:14px; font-weight:500; color:#495057; display:block; margin-bottom:8px;">💳 信用卡卡號</label>
+                    <input type="text" id="cc_input" placeholder="1234 1234 1234 1232" maxlength="19" style="
+                        width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6;
+                        background-color: #f8f9fa; font-size: 15px; box-sizing: border-box; outline: none;
+                    " />
+                </div>
+
+                <div style="flex: 1; min-width: 120px;">
+                    <label style="font-size:14px; font-weight:500; color:#495057; display:block; margin-bottom:8px;">📅 有效日期</label>
+                    <input type="text" id="exp_input" placeholder="MM/YY" maxlength="5" style="
+                        width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6;
+                        background-color: #f8f9fa; font-size: 15px; box-sizing: border-box; outline: none;
+                        text-align: center;
+                    " />
+                </div>
+
             </div>
+
             <script>
-                const input = document.getElementById('cc_input');
-                // 每次使用者放開鍵盤或貼上，即時在前端重新用正則表達式補空格
-                input.addEventListener('input', function (e) {
-                    let target = e.target;
-                    let position = target.selectionStart;
-                    let length = target.value.length;
+                const ccInput = document.getElementById('cc_input');
+                const expInput = document.getElementById('exp_input');
 
-                    // 去除所有非數字字元
-                    let value = target.value.replace(/\D/g, '');
-                    // 每 4 碼拆開補空格
-                    let formatted = value.match(/.{1,4}/g)?.join(' ') || '';
-                    target.value = formatted;
+                // 全域資料包物件
+                let paymentData = { card: '', exp: '' };
 
-                    // 保持游標在原本的相對位置，防彈跳
-                    if (position !== length) {
-                        target.setSelectionRange(position, position);
-                    }
-
-                    // 將洗乾淨的純數字傳送到 Streamlit 後台儲存
+                function sendToStreamlit() {
                     window.parent.postMessage({
                         type: 'streamlit:setComponentValue',
-                        value: value
+                        value: JSON.stringify(paymentData)
                     }, '*');
+                }
+
+                // 1. 卡號自動補空格監聽
+                ccInput.addEventListener('input', function (e) {
+                    let val = e.target.value.replace(/\D/g, '');
+                    let formatted = val.match(/.{1,4}/g)?.join(' ') || '';
+                    e.target.value = formatted;
+                    paymentData.card = val; // 傳純數字到後台
+                    sendToStreamlit();
+                });
+
+                // 2. 有效日期智慧自動補斜線 / 監聽
+                expInput.addEventListener('input', function (e) {
+                    let val = e.target.value.replace(/\D/g, ''); // 移除所有非數字
+
+                    if (val.length >= 2) {
+                        // 當輸入滿 2 個數字時，自動在後面拼接斜線 /
+                        e.target.value = val.slice(0, 2) + '/' + val.slice(2, 4);
+                    } else {
+                        e.target.value = val;
+                    }
+                    paymentData.exp = e.target.value; // 將含有斜線的格式直接傳回後台
+                    sendToStreamlit();
                 });
             </script>
             """
 
-            # 使用 components.html 將這段完美具備 Input Mask 功能的輸入框內嵌進來
-            cc_raw_digits = components.html(html_input_mask, height=55, scrolling=False)
+            # 渲染前端雙欄位組件
+            js_payload = components.html(html_payment_mask, height=90, scrolling=False)
 
-            # 接收 JavaScript 傳回來的卡號資料（若尚未輸入則為空字串）
-            st.session_state.card_number = str(cc_raw_digits) if cc_raw_digits is not None else ""
+            # 解析前端即時回傳的 JSON 字串數據
+            card_clean = ""
+            exp_clean = ""
+            if js_payload and str(js_payload).strip() != "":
+                try:
+                    import json
 
-            cc_date = st.text_input("📅 有效期限", placeholder="MM/YY", max_chars=5)
+                    data_obj = json.loads(str(js_payload))
+                    card_clean = data_obj.get("card", "")
+                    exp_clean = data_obj.get("exp", "")
+                except:
+                    pass
+
+            # 安全碼 (CVV) 則保持原樣（讓 Streamlit 輸入，以便密碼星號遮罩正常工作）
             cc_cvv = st.text_input("🔒 安全碼", type="password", placeholder="123", max_chars=3)
 
-            # 判斷是否完整輸入：16碼卡號（排除空格後的長度）、日期與安全碼
-            # 由於 components.html 回傳的數值可能帶有 'None' 字串或空白，需要精準清理
-            clean_digits_check = re.sub(r"\D", "", st.session_state.card_number)
-            pay_valid = len(clean_digits_check) == 16 and len(cc_date) >= 4 and len(cc_cvv) >= 3
+            # 驗證條件：卡號除空後須滿 16 碼、有效日期格式須為 MM/YY (長度為5)、安全碼須為 3 碼
+            pay_valid = len(card_clean) == 16 and len(exp_clean) == 5 and len(cc_cvv) >= 3
 
         if pay_valid:
             if st.button("🔒 確定支付 $150 並開啟盲盒 🎰", type="primary", use_container_width=True):
@@ -1120,7 +1146,6 @@ else:
                 conn.close()
 
                 increment_mission_counter(current_student, current_uni, "buy_count")
-                st.session_state.card_number = ""
 
                 st.balloons()
                 st.success(f"✨ 刷卡扣款成功！恭喜您在盲盒中抽中：")
@@ -1130,4 +1155,5 @@ else:
                 time.sleep(3.5)
                 st.rerun()
         else:
-            st.button("🔒 請先於上方正確填寫 16 碼信用卡付款資訊以解鎖盲盒購買", disabled=True, use_container_width=True)
+            st.button("🔒 請先於上方正確填寫 16 碼信用卡與有效日期資訊以解鎖盲盒購買", disabled=True,
+                      use_container_width=True)
