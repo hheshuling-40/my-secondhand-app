@@ -74,7 +74,7 @@ st.markdown("""
         font-weight: 600 !important;
         border-radius: 8px !important;
         text-align: center;
-        padding: 8px 16px;
+        padding: 8px 166px;
         display: inline-block;
         text-decoration: none;
         font-size: 13px;
@@ -504,7 +504,6 @@ else:
             st.info(f"💡 **商品描述：**\n{prod_data['description']}")
             st.markdown("---")
 
-            # ✂️ 精簡優化後的配送管道選擇
             buyer_ship_choice = st.selectbox("請選擇配送管道",
                                              ["四大超商取貨", "使用賣家提供的 賣貨便/好賣+ 網址", "預約校園面交"])
 
@@ -528,7 +527,7 @@ else:
                     chain_choice = st.selectbox("選擇超商", ["7-11", "全家", "萊爾富", "OK"])
                 with c2:
                     target_url = EMAP_URLS.get(chain_choice, "https://www.google.com")
-                    st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)  # 對齊排版
+                    st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
                     st.markdown(
                         f'<a href="{target_url}" target="_blank" class="emap-btn">🌐 打開{chain_choice}電子地圖</a>',
                         unsafe_allow_html=True)
@@ -754,9 +753,12 @@ else:
 
         with m_tab2:
             st.write("#### ➕ 填寫失物通報單")
+
+            # 🛠️ 修正點：將學校體系選擇移出 st.form，建立即時動態連動
+            l_type = st.selectbox("拾獲物品學校體系 *", CAMPUS_LABELS, key="lost_type_select")
+            l_uni = st.selectbox("拾獲物品所屬學校 *", CAMPUS_TYPE_MAP[l_type], key="lost_uni_select")
+
             with st.form("lost_form", clear_on_submit=True):
-                l_type = st.selectbox("拾獲物品學校體系 *", CAMPUS_LABELS)
-                l_uni = st.selectbox("拾獲物品所屬學校 *", CAMPUS_TYPE_MAP[l_type])
                 l_name = st.text_input("失物名稱 *", placeholder="例如：AirPods 左耳")
                 l_place = st.text_input("詳細拾獲位置 *", placeholder="例如：綜大 1 樓飲水機旁")
                 l_contact = st.text_input("目前暫存領取地點 *", placeholder="例如：生輔組櫃檯")
