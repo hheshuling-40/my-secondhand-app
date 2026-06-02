@@ -2,10 +2,10 @@ import streamlit as st
 import random
 import streamlit.components.v1 as components
 
-# 設定網頁標題
+# 1. 網頁基本設定 (維持你原本的設定)
 st.set_page_config(page_title="My Secondhand App", page_icon="♻️", layout="centered")
 
-# 初始化 session state（保留你原本的功能狀態）
+# 2. 初始化 Session State (維持你原本儲存二手物與對話的狀態)
 if "items" not in st.session_state:
     st.session_state.items = [
         {"name": "舊課本", "description": "微積分課本，九成新", "price": 100, "image": None},
@@ -15,25 +15,26 @@ if "items" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# 側邊欄導覽選單（新增 盲盒專區）
+# 3. 側邊欄導覽選單 (幫你新增了最後一項：盲盒專區)
 page = st.sidebar.selectbox(
     "選擇頁面",
     ["首頁", "二手專區", "上傳二手物", "聊天室", "盲盒專區 ($150 / 次)"]
 )
 
 # ==========================================
-# 1. 首頁
+# 分頁 1：首頁 (文字與圖片一致)
 # ==========================================
 if page == "首頁":
     st.title("歡迎來到二手物交換平台 👋")
     st.write("在這裡，你可以自由分享、交換或販售你的二手物品，讓資源重獲新生！")
+
     st.subheader("平台特色")
     st.markdown("- **安全交易**：認證用戶，保障雙方權益")
     st.markdown("- **環保永續**：減少浪費，物盡其用")
     st.markdown("- **社群互動**：內建聊天室，溝通零距離")
 
 # ==========================================
-# 2. 二手專區
+# 分頁 2：二手專區
 # ==========================================
 elif page == "二手專區":
     st.title("🛍️ 二手專區")
@@ -50,13 +51,12 @@ elif page == "二手專區":
                 if item['image']:
                     st.image(item['image'], use_container_width=True)
 
-                # 精簡購買功能
                 if st.button("聯絡賣家", key=f"contact_{idx}"):
                     st.success(f"已開啟與 {item['name']} 賣家的對話通道！")
                 st.markdown("---")
 
 # ==========================================
-# 3. 上傳二手物
+# 分頁 3：上傳二手物
 # ==========================================
 elif page == "上傳二手物":
     st.title("📤 上傳二手物")
@@ -76,45 +76,41 @@ elif page == "上傳二手物":
                     "image": image
                 }
                 st.session_state.items.append(new_item)
-                st.sidebar.success("上傳成功！")
                 st.success(f"成功上架：{name}")
             else:
                 st.error("請填寫物品名稱與描述！")
 
 # ==========================================
-# 4. 聊天室
+# 分頁 4：聊天室
 # ==========================================
 elif page == "聊天室":
     st.title("💬 內建聊天室")
     st.write("與買家/賣家即時溝通：")
 
-    # 顯示歷史訊息
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
 
-    # 發送新訊息
     if user_input := st.chat_input("請輸入訊息..."):
         with st.chat_message("user"):
             st.write(user_input)
         st.session_state.messages.append({"role": "user", "content": user_input})
 
-        # 模擬系統/賣家自動回覆
         reply = f"已收到您的訊息：『{user_input}』。賣家上線後會立即回覆您！"
         with st.chat_message("assistant"):
             st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
 # ==========================================
-# 5. 盲盒專區 ($150 / 次) —— 黑白灰極簡極致風
+# 分頁 5：盲盒專區 ($150 / 次) —— 💡 這是新增的黑白灰極簡專區
 # ==========================================
 elif page == "盲盒專區 ($150 / 次)":
     st.title("BLIND BOX")
 
-    # 抽獎獎品池庫（可自由調整）
-    prizes = ["神祕二手全新品", "星巴克電子咖啡券", "平台免運券", "精美文具福袋", "復古二手相機"]
+    # 抽獎的獎項庫 (可自行修改項目)
+    prizes = ["神祕二手全新品", "星巴克電子咖啡券", "平台免運券", "精美文具福袋", "復古底片相機"]
 
-    # 使用 st.components.v1.html 將黑白灰前端介面完美融入 Python
+    # 利用三引號 """ 將網頁前端程式碼完全轉為字串，徹底解決 Python 認錯 CSS 的 SyntaxError 報錯
     blind_box_html = f"""
     <!DOCTYPE html>
     <html lang="zh-TW">
@@ -328,7 +324,7 @@ elif page == "盲盒專區 ($150 / 次)":
             const payModal = document.getElementById('payModal');
             const blindBox = document.getElementById('blindBox');
 
-            // 隨機抽獎池庫
+            // 帶入 Python 定義的獎品陣列
             const prizePool = {prizes};
 
             openPayBtn.addEventListener('click', () => payModal.classList.add('active'));
@@ -341,7 +337,7 @@ elif page == "盲盒專區 ($150 / 次)":
 
                 setTimeout(() => {{
                     blindBox.classList.remove('shake');
-                    // 隨機抽取一個獎項
+                    // 隨機抽選獎項
                     const randomPrize = prizePool[Math.floor(Math.random() * prizePool.length)];
                     alert('✨ 支付成功！\\n\\n恭喜您抽中：【' + randomPrize + '】\\n工作人員將會與您聯繫發貨事宜。');
                 }}, 1200);
@@ -351,5 +347,5 @@ elif page == "盲盒專區 ($150 / 次)":
     </html>
     """
 
-    # 嵌入黑白灰極簡 HTML
-    components.html(blind_box_html, height=480, scrolling=False)
+    # 渲染至網頁中
+    components.html(blind_box_html, height=500, scrolling=False)
