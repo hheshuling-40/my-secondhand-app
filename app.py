@@ -7,7 +7,6 @@ from PIL import Image
 import io
 import time
 import re
-import streamlit.components.v1 as components
 
 # 設定網頁標題與網頁自動配置
 st.set_page_config(page_title="Campus Market | 全國大學生智慧市集", page_icon="🛍️", layout="wide")
@@ -1021,7 +1020,7 @@ else:
                         st.rerun()
 
     # ------------------------------------------
-    # 功能 5: 盲盒專區（修復版即時數據回傳組件）
+    # 功能 5: 盲盒專區（修復版：採用 Streamlit 原生文字輸入，永不卡死）
     # ------------------------------------------
     elif st.session_state.current_menu == "盲盒專區":
         st.subheader("🎁 幸運官方盲盒抽獎池 ($150 / 次)")
@@ -1046,104 +1045,42 @@ else:
 
         with st.expander("📝 點此展開信用卡付款資料填寫", expanded=True):
 
-            # 💡 修復版前端 HTML/JS 組件：修復了在輸入完畢後無感知的問題
-            html_payment_mask = """
-            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 5px;">
+            # 使用原生排版劃分輸入欄位
+            pay_col1, pay_col2, pay_col3 = st.columns([2, 1, 1])
 
-                <!-- 信用卡卡號結構 -->
-                <div style="flex: 2; min-width: 240px;">
-                    <label style="font-size:14px; font-weight:500; color:#495057; display:block; margin-bottom:8px;">💳 信用卡卡號</label>
-                    <input type="text" id="cc_input" placeholder="1234 5678 1234 5678" maxlength="19" style="
-                        width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6;
-                        background-color: #f8f9fa; font-size: 15px; box-sizing: border-box; outline: none;
-                    " />
-                </div>
+            with pay_col1:
+                cc_number = st.text_input(
+                    "💳 信用卡卡號",
+                    placeholder="1234567812345678",
+                    max_chars=16,
+                    help="請輸入16位純數字卡號"
+                )
+            with pay_col2:
+                cc_expiry = st.text_input(
+                    "📅 有效日期",
+                    placeholder="MM/YY",
+                    max_chars=5,
+                    help="例如 12/28"
+                )
+            with pay_col3:
+                cc_cvv = st.text_input(
+                    "🔒 安全碼",
+                    type="password",
+                    placeholder="123",
+                    max_chars=3
+                )
 
-                <!-- 有效日期結構 (智慧自動補斜線) -->
-                <div style="flex: 1; min-width: 120px;">
-                    <label style="font-size:14px; font-weight:500; color:#495057; display:block; margin-bottom:8px;">📅 有效日期</label>
-                    <input type="text" id="exp_input" placeholder="MM/YY" maxlength="5" style="
-                        width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6;
-                        background-color: #f8f9fa; font-size: 15px; box-sizing: border-box; outline: none;
-                        text-align: center;
-                    " />
-                </div>
+            # 清洗並驗證格式
+            card_clean = re.sub(r'\D', '', cc_number)
+            exp_clean = cc_expiry.strip()
+            cvv_clean = re.sub(r'\D', '', cc_cvv)
 
-            </div>
-
-            <script>
-                // 為了確保 Streamlit 確實能收到初始化狀態
-                if (!window.Streamlit) {
-                    window.Streamlit = {
-                        setComponentValue: function(value) {
-                            window.parent.postMessage({
-                                type: 'streamlit:setComponentValue',
-                                value: value
-                            }, '*');
-                        }
-                    };
-                }
-
-                const ccInput = document.getElementById('cc_input');
-                const expInput = document.getElementById('exp_input');
-
-                let paymentData = { card: '', exp: '' };
-
-                function sendToStreamlit() {
-                    window.parent.postMessage({
-                        type: 'streamlit:setComponentValue',
-                        value: JSON.stringify(paymentData)
-                    }, '*');
-                }
-
-                // 卡號輸入事件
-                ccInput.addEventListener('input', function (e) {
-                    let val = e.target.value.replace(/\D/g, '');
-                    let formatted = val.match(/.{1,4}/g)?.join(' ') || '';
-                    e.target.value = formatted;
-                    paymentData.card = val; 
-                    sendToStreamlit();
-                });
-
-                // 有效日期智慧自動補斜線
-                expInput.addEventListener('input', function (e) {
-                    let val = e.target.value.replace(/\D/g, '');
-                    if (val.length >= 2) {
-                        e.target.value = val.slice(0, 2) + '/' + val.slice(2, 4);
-                    } else {
-                        e.target.value = val;
-                    }
-                    paymentData.exp = e.target.value;
-                    sendToStreamlit();
-                });
-            </script>
-            """
-
-            # 使用 `components.html` 渲染並接回變數值
-            js_payload = components.html(html_payment_mask, height=95, scrolling=False)
-
-            card_clean = ""
-            exp_clean = ""
-
-            # 解析前端即時發送出來的 JSON 封包
-            if js_payload:
-                try:
-                    import json
-
-                    data_obj = json.loads(str(js_payload))
-                    card_clean = data_obj.get("card", "")
-                    exp_clean = data_obj.get("exp", "")
-                except:
-                    pass
-
-            # 安全碼 (CVV) 保持在 Streamlit 端，方便獲得系統的原生輸入保護
-            cc_cvv = st.text_input("🔒 安全碼", type="password", placeholder="123", max_chars=3)
-
-            # 修正後的判定邏輯：只要輸入對應長度就會自動放行
-            pay_valid = len(card_clean) == 16 and len(exp_clean) == 5 and len(cc_cvv) == 3
+            # 判斷是否完整輸入（16碼卡號、有效日期包含斜線且長度為5、3碼安全碼）
+            pay_valid = len(card_clean) == 16 and len(exp_clean) == 5 and "/" in exp_clean and len(cvv_clean) == 3
 
         if pay_valid:
-            if st.button("🔒 確定支付 $150 並開啟盲盒 🎰", type="primary", use_container_width=True):
+            # 只要欄位長度合格，這個按鈕就會在網頁上立刻亮起、完全可以點擊！
+            if st.button("🔓 確定支付 $150 並開啟盲盒 🎰", type="primary", use_container_width=True):
                 with st.spinner("正在進行銀行 3D 安全金流驗證，請勿關閉網頁... 💳"):
                     time.sleep(2.0)
 
@@ -1167,5 +1104,6 @@ else:
                 time.sleep(3.5)
                 st.rerun()
         else:
-            st.button("🔒 請先於上方正確填寫 16 碼信用卡與有效日期資訊以解鎖盲盒購買", disabled=True,
+            # 未填滿時顯示提示
+            st.button("🔒 請先於上方正確填寫 16 碼信用卡、有效日期(MM/YY)與3碼安全碼以解鎖盲盒購買", disabled=True,
                       use_container_width=True)
